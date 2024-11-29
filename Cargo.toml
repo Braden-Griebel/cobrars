@@ -1,0 +1,3 @@
+[workspace]
+members = ["cobrars_core", "pycobrars/rust", "rcobrars/src/rust"]
+resolver = "2"

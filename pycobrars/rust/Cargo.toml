@@ -10,3 +10,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = "0.23.1"
+cobrars_core = { path = "../../cobrars_core" }
