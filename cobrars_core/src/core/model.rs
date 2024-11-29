@@ -1,0 +1,1 @@
+//! This module provides the core Model struct for representing an entire metabolic model

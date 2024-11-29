@@ -1,0 +1,1 @@
+//! This module provides the metabolite struct representing a metabolite
