@@ -1,16 +1,22 @@
-[build-system]
-requires = ["maturin>=1.7,<2.0"]
-build-backend = "maturin"
-
 [project]
 name = "pycobrars"
-requires-python = ">=3.8"
-classifiers = [
-  "Programming Language :: Rust",
-  "Programming Language :: Python :: Implementation :: CPython",
-  "Programming Language :: Python :: Implementation :: PyPy",
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Braden Griebel", email = "bgriebel@uw.edu" }
 ]
-dynamic = ["version"]
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+pycobrars = "pycobrars:main"
+
 [tool.maturin]
-features = ["pyo3/extension-module"]
-module-name = "pycobrars._pycobrars"
+module-name = "pycobrars._core"
+python-packages = ["pycobrars"]
+python-source = "src"
+
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"

@@ -1,6 +1,4 @@
-from .pycobrars import *
+from pycobrars._core import hello_from_bin
 
-
-__doc__ = pycobrars.__doc__
-if hasattr(pycobrars, "__all__"):
-    __all__ = pycobrars.__all__
+def main() -> None:
+    print(hello_from_bin())
