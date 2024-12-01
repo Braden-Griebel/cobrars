@@ -10,7 +10,7 @@ use std::fmt::{Display, Formatter};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Gene {
     /// Used to identify the gene
-    pub(crate) id: String,
+    pub id: String,
     /// Human Readable Gene Name
     name: Option<String>,
     /// Whether this gene is currently active (see [`GeneActivity`])
@@ -18,9 +18,18 @@ pub struct Gene {
 }
 
 impl Gene {
-    pub(crate) fn new(id: String, name: Option<String>, activity: GeneActivity) -> Gene {
+    pub fn new(id: String, name: Option<String>, activity: GeneActivity) -> Gene {
         Gene{
             id, name, activity
+        }
+    }
+}
+
+impl Display for Gene {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match &self.name {
+            Some(s) => write!(f, "{}", s),
+            None => write!(f, "{}", self.id),
         }
     }
 }

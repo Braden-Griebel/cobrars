@@ -16,6 +16,7 @@ pycobrars = "pycobrars:main"
 module-name = "pycobrars._core"
 python-packages = ["pycobrars"]
 python-source = "src"
+features = ["pyo3/extension-module"]
 
 [build-system]
 requires = ["maturin>=1.0,<2.0"]
