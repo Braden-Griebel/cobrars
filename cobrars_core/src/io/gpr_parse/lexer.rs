@@ -6,25 +6,36 @@ use std::borrow::Borrow;
 
 use crate::io::gpr_parse::token::Token;
 
+/// Struct for lexing a GPR string into a token stream
 pub struct Lexer {
+    /// GPR source as a character vector
     source: Vec<char>,
+    /// Output token stream
     tokens: VecDeque<Token>,
-    at_end: bool,
+    /// Start of the current token
     start: usize,
+    /// Current position in source
     current: usize,
 }
 
 impl Lexer {
+    /// Create a new lexer
     pub fn new(source: &str) -> Self {
         Lexer {
             source: source.chars().collect(),
             tokens: VecDeque::new(),
-            at_end: false,
             start: 0,
             current: 0,
         }
     }
 
+    /// Lex the source code, returning a vector of tokens
+    pub fn lex(&mut self) -> Result<Vec<Token>, LexerError> {
+        let token_deque = self.scan_tokens()?;
+        Ok(Vec::from(token_deque.clone()))
+    }
+
+    /// Scan the source GPR and return a token stream
     pub fn scan_tokens(&mut self)->Result<&VecDeque<Token>, LexerError>{
         while !self.is_at_end(){
             self.start = self.current;
@@ -67,6 +78,7 @@ impl Lexer {
         match text.borrow() {
             "and"|"And"|"AND" => {self.add_token(Token::And)},
             "or"|"Or"|"OR" => {self.add_token(Token::Or)},
+            "not"|"Not"|"NOT" => {self.add_token(Token::Not)},
             gene => {self.add_token(Token::Identifier(gene.to_string()))},
         }
     }
@@ -105,6 +117,7 @@ impl Lexer {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum LexerError{
     InvalidToken,
 }

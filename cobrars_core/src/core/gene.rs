@@ -4,16 +4,25 @@ use std::cell::RefCell;
 use std::hash::Hash;
 use std::rc::Rc;
 use std::borrow::Borrow;
+use std::fmt::{Display, Formatter};
 
 /// Structure Representing a Gene
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Gene {
     /// Used to identify the gene
-    id: String,
+    pub(crate) id: String,
     /// Human Readable Gene Name
     name: Option<String>,
     /// Whether this gene is currently active (see [`GeneActivity`])
     activity: GeneActivity,
+}
+
+impl Gene {
+    pub(crate) fn new(id: String, name: Option<String>, activity: GeneActivity) -> Gene {
+        Gene{
+            id, name, activity
+        }
+    }
 }
 
 impl Hash for Gene {
@@ -42,6 +51,34 @@ pub enum Gpr {
 }
 
 impl Gpr {
+    /// Create a new binary operation node
+    pub fn new_binary_operation(left: Gpr, operator: GprOperatorType, right: Gpr) -> Result<Gpr, GprError> {
+        let op = match operator {
+            GprOperatorType::Or => {
+                GprOperation::Or { left: Box::new(left), right: Box::new(right) }
+            }
+            GprOperatorType::And => {
+                GprOperation::And { left: Box::new(left), right: Box::new(right) }
+            }
+            GprOperatorType::Not => {return Err(GprError::InvalidBinaryOp)}
+        };
+        Ok(Gpr::Operation(op))
+    }
+
+    /// Create a new unary operation node
+    pub fn new_unary_operation(operator: GprOperatorType, operand: Gpr) -> Result<Gpr, GprError> {
+        let op = match operator {
+            GprOperatorType::Not => {GprOperation::Not {val: Box::new(operand)}}
+            _ => {return Err(GprError::InvalidUnaryOp)}
+        };
+        Ok(Gpr::Operation(op))
+    }
+
+    /// Create a new gene node
+    pub fn new_gene_node(gene: Rc<RefCell<Gene>>)->Gpr{
+        Gpr::Gene(gene)
+    }
+
     /// Evaluate whether a GPR evaluates to Active or Inactive
     pub fn eval(&self)->GeneActivity{
         match self {
@@ -77,6 +114,30 @@ impl Gpr {
             Gpr::Gene(g) => {(**g).borrow().activity.clone()}
         }
     }
+
+    /// Generate a GPR string with gene ids from the GPR AST
+    pub fn to_string_id(&self)->String{
+        match self{
+            Gpr::Operation(op) => {
+                match op {
+                    GprOperation::Or { left, right } => {format!("({} or {})", left.to_string_id(), right.to_string_id())}
+                    GprOperation::And { left, right } => {format!("({} and {})", left.to_string_id(), right.to_string_id())}
+                    GprOperation::Not { val } => {format!("(not {})", val)}
+                }
+            }
+            Gpr::Gene(gene_ref) => {
+                (**gene_ref).borrow().id.clone()
+
+            }
+        }
+    }
+
+}
+
+impl Display for Gpr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string_id())
+    }
 }
 
 /// Possible operations on genes
@@ -84,6 +145,17 @@ pub enum GprOperation {
     Or{left: Box<Gpr>, right: Box<Gpr>},
     And{left: Box<Gpr>, right: Box<Gpr>},
     Not{val: Box<Gpr>},
+}
+
+pub enum GprOperatorType {
+    Or,
+    And,
+    Not
+}
+
+pub enum GprError {
+    InvalidBinaryOp,
+    InvalidUnaryOp,
 }
 
 #[cfg(test)]
