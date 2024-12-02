@@ -5,13 +5,10 @@ edition = "2021"
 
 [features]
 scip = ["dep:russcip"]
-matio = ["dep:matio-rs"]
-
 
 [dependencies]
 clarabel = "0.9.0"
-russcip = {version = "0.4.1", optional = true}
-matio-rs = {version = "1.3.2", optional = true}
+russcip = { version = "0.4.1", optional = true }
 serde_json = "1.0.133"
 nalgebra = { version = "0.33.2", features = ["sparse"] }
 indexmap = "2.6.0"

@@ -1,4 +1,4 @@
-//! This module provides the model Model struct for representing an entire metabolic model
+//! This module provides the Model struct for representing an entire metabolic model
 use crate::model::gene::Gene;
 use crate::model::metabolite::Metabolite;
 use crate::model::reaction::Reaction;
@@ -11,4 +11,14 @@ struct Model {
     reactions: IndexMap<String, Reaction>,
     genes: IndexMap<String, Rc<RefCell<Gene>>>,
     metabolites: IndexMap<String, Metabolite>,
+    serialized_from: SerializedFrom,
+}
+
+
+
+pub(crate) enum SerializedFrom {
+    None,
+    Json,
+    Yaml,
+    Mat,
 }

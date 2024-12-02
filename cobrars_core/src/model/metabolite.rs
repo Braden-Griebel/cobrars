@@ -4,15 +4,22 @@ use std::hash::Hash;
 
 /// Represents a metabolite
 #[derive(Debug, Clone)]
-pub(crate) struct Metabolite {
+pub struct Metabolite {
     /// Used to identify the metabolite (must be unique)
     id: String,
-    /// Chemical Formula of the metabolite
-    formula: Option<String>,
     /// Human Readable name of the metabolite
     name: Option<String>,
     /// Which compartment the metabolite is in
     compartment: Option<String>,
+    /// Electrical charge of the Metabolite
+    charge: i32,
+    /// Chemical Formula of the metabolite
+    formula: Option<String>,
+    /// Notes about the metabolite
+    notes: Option<String>,
+    /// Metabolite annotations
+    annotation: Option<String>,
+
 }
 
 impl Hash for Metabolite {
@@ -28,6 +35,9 @@ impl Metabolite {
             formula: None,
             name: None,
             compartment: None,
+            charge: 0,
+            notes: None,
+            annotation: None,
         }
     }
 
@@ -37,12 +47,18 @@ impl Metabolite {
         formula: Option<String>,
         name: Option<String>,
         compartment: Option<String>,
+        charge: i32,
+        notes: Option<String>,
+        annotation: Option<String>,
     ) -> Metabolite {
         Metabolite {
             id,
             formula,
             name,
             compartment,
+            charge,
+            notes,
+            annotation,
         }
     }
 }

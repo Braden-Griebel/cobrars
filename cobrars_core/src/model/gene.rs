@@ -15,11 +15,27 @@ pub struct Gene {
     name: Option<String>,
     /// Whether this gene is currently active (see [`GeneActivity`])
     activity: GeneActivity,
+    /// Notes about the gene
+    notes: Option<String>,
+    /// Gene Annotations
+    annotation: Option<String>,
 }
 
 impl Gene {
-    pub fn new(id: String, name: Option<String>, activity: GeneActivity) -> Gene {
-        Gene { id, name, activity }
+    pub fn new(
+        id: String,
+        name: Option<String>,
+        activity: GeneActivity,
+        notes: Option<String>,
+        annotation: Option<String>,
+    ) -> Gene {
+        Gene {
+            id,
+            name,
+            activity,
+            notes,
+            annotation,
+        }
     }
 }
 
@@ -182,12 +198,16 @@ mod tests {
             id: "Active".to_string(),
             name: None,
             activity: GeneActivity::Active,
+            notes: None,
+            annotation: None,
         };
         let active_gene_node = Gpr::Gene(Rc::new(RefCell::new(active_gene)));
         let inactive_gene = Gene {
             id: "Inactive".to_string(),
             name: None,
             activity: GeneActivity::Inactive,
+            notes: None,
+            annotation: None,
         };
         let inactive_gene_node = Gpr::Gene(Rc::new(RefCell::new(inactive_gene)));
         assert_eq!(active_gene_node.eval(), GeneActivity::Active);
@@ -201,6 +221,8 @@ mod tests {
             id: "Active1".to_string(),
             name: None,
             activity: GeneActivity::Active,
+            notes: None,
+            annotation: None,
         };
         let active_gene1_ref = Rc::new(RefCell::new(active_gene1));
         let active_gene1_node = Gpr::Gene(active_gene1_ref.clone());
@@ -208,6 +230,8 @@ mod tests {
             id: "Inactive2".to_string(),
             name: None,
             activity: GeneActivity::Inactive,
+            notes: None,
+            annotation: None,
         };
         let inactive_gene2_ref = Rc::new(RefCell::new(inactive_gene2));
         let inactive_gene2_node = Gpr::Gene(inactive_gene2_ref.clone());
@@ -222,6 +246,8 @@ mod tests {
             id: "Active1".to_string(),
             name: None,
             activity: GeneActivity::Active,
+            notes: None,
+            annotation: None,
         };
         let active_gene1_ref = Rc::new(RefCell::new(active_gene1));
         let active_gene1_node = Gpr::Gene(active_gene1_ref.clone());
@@ -229,6 +255,8 @@ mod tests {
             id: "Active2".to_string(),
             name: None,
             activity: GeneActivity::Active,
+            notes: None,
+            annotation: None,
         };
         let active_gene2_ref = Rc::new(RefCell::new(active_gene2));
         let active_gene2_node = Gpr::Gene(active_gene2_ref.clone());
@@ -243,6 +271,8 @@ mod tests {
             id: "Inactive1".to_string(),
             name: None,
             activity: GeneActivity::Inactive,
+            notes: None,
+            annotation: None,
         };
         let inactive_gene1_ref = Rc::new(RefCell::new(inactive_gene1));
         let inactive_gene1_node = Gpr::Gene(inactive_gene1_ref.clone());
@@ -250,6 +280,8 @@ mod tests {
             id: "Inactive2".to_string(),
             name: None,
             activity: GeneActivity::Inactive,
+            notes: None,
+            annotation: None,
         };
         let inactive_gene2_ref = Rc::new(RefCell::new(inactive_gene2));
         let inactive_gene2_node = Gpr::Gene(inactive_gene2_ref.clone());
@@ -267,6 +299,8 @@ mod tests {
             id: "Active1".to_string(),
             name: None,
             activity: GeneActivity::Active,
+            notes: None,
+            annotation: None,
         };
         let active_gene1_ref = Rc::new(RefCell::new(active_gene1));
         let active_gene1_node = Gpr::Gene(active_gene1_ref.clone());
@@ -274,6 +308,8 @@ mod tests {
             id: "Inactive2".to_string(),
             name: None,
             activity: GeneActivity::Inactive,
+            notes: None,
+            annotation: None,
         };
         let inactive_gene2_ref = Rc::new(RefCell::new(inactive_gene2));
         let inactive_gene2_node = Gpr::Gene(inactive_gene2_ref.clone());
@@ -288,6 +324,8 @@ mod tests {
             id: "Active1".to_string(),
             name: None,
             activity: GeneActivity::Active,
+            notes: None,
+            annotation: None,
         };
         let active_gene1_ref = Rc::new(RefCell::new(active_gene1));
         let active_gene1_node = Gpr::Gene(active_gene1_ref.clone());
@@ -295,6 +333,8 @@ mod tests {
             id: "Active2".to_string(),
             name: None,
             activity: GeneActivity::Active,
+            notes: None,
+            annotation: None,
         };
         let active_gene2_ref = Rc::new(RefCell::new(active_gene2));
         let active_gene2_node = Gpr::Gene(active_gene2_ref.clone());
@@ -309,6 +349,8 @@ mod tests {
             id: "Inactive1".to_string(),
             name: None,
             activity: GeneActivity::Inactive,
+            notes: None,
+            annotation: None,
         };
         let inactive_gene1_ref = Rc::new(RefCell::new(inactive_gene1));
         let inactive_gene1_node = Gpr::Gene(inactive_gene1_ref.clone());
@@ -316,6 +358,8 @@ mod tests {
             id: "Inactive2".to_string(),
             name: None,
             activity: GeneActivity::Inactive,
+            notes: None,
+            annotation: None,
         };
         let inactive_gene2_ref = Rc::new(RefCell::new(inactive_gene2));
         let inactive_gene2_node = Gpr::Gene(inactive_gene2_ref.clone());
@@ -333,6 +377,8 @@ mod tests {
             id: "Active1".to_string(),
             name: None,
             activity: GeneActivity::Active,
+            notes: None,
+            annotation: None,
         };
         let active_gene_ref = Rc::new(RefCell::new(active_gene));
         let active_gene_node = Gpr::Gene(active_gene_ref.clone());
@@ -346,6 +392,8 @@ mod tests {
             id: "Active1".to_string(),
             name: None,
             activity: GeneActivity::Inactive,
+            notes: None,
+            annotation: None,
         };
         let inactive_gene_ref = Rc::new(RefCell::new(inactive_gene));
         let inactive_gene_node = Gpr::Gene(inactive_gene_ref.clone());

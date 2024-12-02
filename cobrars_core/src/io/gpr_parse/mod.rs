@@ -79,3 +79,90 @@ pub enum GprParseError {
     /// Expression was not completed when parsing terminated
     EarlyTermination,
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::io::gpr_parse::parse_gpr;
+    use crate::model::gene::{Gene, GeneActivity, Gpr, GprOperation};
+    use indexmap::IndexMap;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    #[test]
+    fn test_parse_gpr() {
+        let gpr = "Rv0001 and (Rv0002 or Rv0003)";
+        let mut gene_map: IndexMap<String, Rc<RefCell<Gene>>> = IndexMap::new();
+        gene_map.insert(
+            "Rv0001".to_string(),
+            Rc::new(RefCell::new(Gene::new(
+                "Rv0001".to_string(),
+                None,
+                GeneActivity::Active,
+                None,
+                None,
+            ))),
+        );
+        gene_map.insert(
+            "Rv0002".to_string(),
+            Rc::new(RefCell::new(Gene::new(
+                "Rv0002".to_string(),
+                None,
+                GeneActivity::Active,
+                None,
+                None,
+            ))),
+        );
+        gene_map.insert(
+            "Rv0003".to_string(),
+            Rc::new(RefCell::new(Gene::new(
+                "Rv0003".to_string(),
+                None,
+                GeneActivity::Active,
+                None,
+                None,
+            ))),
+        );
+        let (gpr_tree, gene_map) = parse_gpr(gpr, Some(gene_map)).unwrap();
+        match gpr_tree {
+            Gpr::Operation(op) => match op {
+                GprOperation::And { left, right } => {
+                    match *left {
+                        Gpr::Gene(g) => {
+                            if g.borrow().id != "Rv0001" {
+                                panic!("Incorrect Parse")
+                            }
+                        }
+                        _ => panic!("Incorrect Parse"),
+                    }
+                    match *right {
+                        Gpr::Operation(GprOperation::Or { left, right }) => {
+                            match *left {
+                                Gpr::Gene(g) => {
+                                    if g.borrow().id != "Rv0002" {
+                                        panic!("Incorrect Parse")
+                                    }
+                                }
+                                _ => panic!("Incorrect Parse"),
+                            }
+                            match *right {
+                                Gpr::Gene(g) => {
+                                    if g.borrow().id != "Rv0003" {
+                                        panic!("Incorrect Parse")
+                                    }
+                                }
+                                _ => panic!("Incorrect Parse"),
+                            }
+                        }
+                        _ => panic!("Incorrect Parse"),
+                    }
+                }
+                _ => {
+                    panic!("Incorrect operation")
+                }
+            },
+            Gpr::Gene(_) => {
+                panic!("Incorrect gpr parse")
+            }
+        }
+    }
+}

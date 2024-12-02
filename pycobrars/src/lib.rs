@@ -17,6 +17,8 @@ impl PyGene {
             id,
             None,
             cobrars_core::model::gene::GeneActivity::Active,
+            None,
+            None,
         );
         PyGene { inner: inner_gene }
     }

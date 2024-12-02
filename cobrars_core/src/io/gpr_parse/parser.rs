@@ -187,6 +187,8 @@ impl GPRParser {
                 gene_id,
                 None,
                 GeneActivity::Active,
+                None,
+                None,
             ))))
             .clone()
     }
