@@ -2,7 +2,7 @@
 
 use crate::io::gpr_parse::lexer::LexerError;
 use crate::io::gpr_parse::parser::ParseError;
-use crate::model::gene::{Gene, Gpr};
+use crate::metabolic_model::gene::{Gene, Gpr};
 use indexmap::IndexMap;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -26,27 +26,27 @@ mod token;
 ///
 /// # Examples
 /// ```rust
+/// use indexmap::IndexMap;
 /// use cobrars_core::io::gpr_parse::parse_gpr;
 /// let gpr: &str = "Rv0001 and Rv0002";
-/// let (gpr_tree, gene_map) = parse_gpr(gpr, None).unwrap();
+/// let mut gene_map = IndexMap::new();
+/// let gpr_tree = parse_gpr(gpr, &mut gene_map).unwrap();
 /// ```
 pub fn parse_gpr(
     input: &str,
-    gene_map: Option<IndexMap<String, Rc<RefCell<Gene>>>>,
-) -> Result<(Gpr, IndexMap<String, Rc<RefCell<Gene>>>), GprParseError> {
+    gene_map: &mut IndexMap<String, Rc<RefCell<Gene>>>,
+) -> Result<Gpr, GprParseError> {
     // Start by creating a lexer
     let mut lexer = lexer::Lexer::new(input);
     // Convert the GPR string into tokens
     let tokens = lexer.lex()?;
 
     // Now parse those tokens into a GPR tree
-    // first, if no gene_map is provided, create one
-    let gene_map = gene_map.unwrap_or_default();
     // Create the parser
     let mut parser = parser::GPRParser::new(tokens, gene_map);
     // Parse the expression
     let gpr = parser.parse()?;
-    Ok((gpr, parser.gene_map))
+    Ok(gpr)
 }
 
 /// Enum representing possible lex and parse errors
@@ -63,7 +63,7 @@ pub enum GprParseError {
 #[cfg(test)]
 mod tests {
     use crate::io::gpr_parse::parse_gpr;
-    use crate::model::gene::{Gene, GeneActivity, Gpr, GprOperation};
+    use crate::metabolic_model::gene::{Gene, GeneActivity, Gpr, GprOperation};
     use indexmap::IndexMap;
     use std::cell::RefCell;
     use std::rc::Rc;
@@ -102,7 +102,7 @@ mod tests {
                 None,
             ))),
         );
-        let (gpr_tree, gene_map) = parse_gpr(gpr, Some(gene_map)).unwrap();
+        let gpr_tree = parse_gpr(gpr, &mut gene_map).unwrap();
         match gpr_tree {
             Gpr::Operation(op) => match op {
                 GprOperation::And { left, right } => {

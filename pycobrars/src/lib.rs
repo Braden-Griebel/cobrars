@@ -6,17 +6,17 @@ use pyo3::prelude::*;
 
 #[pyclass]
 struct PyGene {
-    inner: cobrars_core::model::gene::Gene,
+    inner: cobrars_core::metabolic_model::gene::Gene,
 }
 
 #[pymethods]
 impl PyGene {
     #[new]
     fn new(id: String) -> Self {
-        let inner_gene = cobrars_core::model::gene::Gene::new(
+        let inner_gene = cobrars_core::metabolic_model::gene::Gene::new(
             id,
             None,
-            cobrars_core::model::gene::GeneActivity::Active,
+            cobrars_core::metabolic_model::gene::GeneActivity::Active,
             None,
             None,
         );

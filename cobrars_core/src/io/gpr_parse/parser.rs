@@ -1,5 +1,5 @@
 use crate::io::gpr_parse::token::Token;
-use crate::model::gene::{Gene, GeneActivity, Gpr, GprError, GprOperation, GprOperatorType};
+use crate::metabolic_model::gene::{Gene, GeneActivity, Gpr, GprError, GprOperation, GprOperatorType};
 
 use indexmap::IndexMap;
 use serde::Deserialize;
@@ -18,18 +18,18 @@ e.g. ( Gene1 AND Gene2) OR (Gene3 AND NOT Gene4)
  */
 
 /// GPR Parser
-pub struct GPRParser {
+pub struct GPRParser<'gm> {
     /// Vector of tokens from the GPR string
     tokens: Vec<Token>,
     /// Current token being processed
     current: usize,
     /// Map containing the Genes
-    pub(crate) gene_map: IndexMap<String, Rc<RefCell<Gene>>>,
+    pub(crate) gene_map: &'gm mut IndexMap<String, Rc<RefCell<Gene>>>,
 }
 
-impl GPRParser {
+impl<'gm> GPRParser<'gm> {
     /// Create a new GPRParser
-    pub fn new(tokens: Vec<Token>, gene_map: IndexMap<String, Rc<RefCell<Gene>>>) -> GPRParser {
+    pub fn new(tokens: Vec<Token>, gene_map: &mut IndexMap<String, Rc<RefCell<Gene>>>) -> GPRParser {
         GPRParser {
             tokens,
             current: 0,
@@ -226,7 +226,8 @@ mod tests {
     fn test_single_gene_parse() {
         let mut lexer = Lexer::new("Rv1304");
         let token_vec: Vec<Token> = lexer.lex().unwrap();
-        let mut parser = GPRParser::new(token_vec, IndexMap::new());
+        let mut gene_map = IndexMap::new();
+        let mut parser = GPRParser::new(token_vec, &mut gene_map);
         let gpr_res = parser.parse().unwrap();
         match gpr_res {
             Gpr::Operation(_) => {
@@ -244,7 +245,8 @@ mod tests {
     fn test_and_parse() {
         let mut lexer = Lexer::new("Rv1304 and Rv0023");
         let token_vec: Vec<Token> = lexer.lex().unwrap();
-        let mut parser = GPRParser::new(token_vec, IndexMap::new());
+        let mut gene_map = IndexMap::new();
+        let mut parser = GPRParser::new(token_vec, &mut gene_map);
         let gpr_res = parser.parse().unwrap();
         match gpr_res {
             Gpr::Operation(op) => match op {
@@ -287,7 +289,8 @@ mod tests {
     fn test_or_parse() {
         let mut lexer = Lexer::new("Rv1304 or Rv0023");
         let token_vec: Vec<Token> = lexer.lex().unwrap();
-        let mut parser = GPRParser::new(token_vec, IndexMap::new());
+        let mut gene_map = IndexMap::new();
+        let mut parser = GPRParser::new(token_vec, &mut gene_map);
         let gpr_res = parser.parse().unwrap();
         match gpr_res {
             Gpr::Operation(op) => match op {
@@ -330,7 +333,8 @@ mod tests {
     fn test_not_parse() {
         let mut lexer = Lexer::new("not Rv0023");
         let token_vec: Vec<Token> = lexer.lex().unwrap();
-        let mut parser = GPRParser::new(token_vec, IndexMap::new());
+        let mut gene_map = IndexMap::new();
+        let mut parser = GPRParser::new(token_vec, &mut gene_map);
         let gpr_res = parser.parse().unwrap();
         match gpr_res {
             Gpr::Operation(op) => match op {
@@ -358,7 +362,8 @@ mod tests {
     fn test_grouping_parse() {
         let mut lexer = Lexer::new("(Rv3141 or Rv0023) and Rv018");
         let token_vec: Vec<Token> = lexer.lex().unwrap();
-        let mut parser = GPRParser::new(token_vec, IndexMap::new());
+        let mut gene_map = IndexMap::new();
+        let mut parser = GPRParser::new(token_vec, &mut gene_map);
         let gpr_res = parser.parse().unwrap();
         match gpr_res {
             Gpr::Operation(op) => match op {
@@ -416,7 +421,8 @@ mod tests {
     fn test_repeated_binary_parse() {
         let mut lexer = Lexer::new("Rv0001 and Rv0002 and Rv0003");
         let token_vec: Vec<Token> = lexer.lex().unwrap();
-        let mut parser = GPRParser::new(token_vec, IndexMap::new());
+        let mut gene_map = IndexMap::new();
+        let mut parser = GPRParser::new(token_vec, &mut gene_map);
         let gpr_res = parser.parse().unwrap();
         match gpr_res {
             Gpr::Operation(op) => match op {
@@ -464,7 +470,8 @@ mod tests {
     fn invalid_parse() {
         let mut lexer = Lexer::new("Rv0001 not Rv0023");
         let token_vec: Vec<Token> = lexer.lex().unwrap();
-        let mut parser = GPRParser::new(token_vec, IndexMap::new());
+        let mut gene_map = IndexMap::new();
+        let mut parser = GPRParser::new(token_vec, &mut gene_map);
         assert_eq!(parser.parse(), Err(ParseError::EarlyTermination));
     }
 }

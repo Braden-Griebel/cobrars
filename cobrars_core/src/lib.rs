@@ -1,4 +1,4 @@
 pub mod io;
-pub mod model;
+pub mod metabolic_model;
 pub mod optimize;
 mod utils;

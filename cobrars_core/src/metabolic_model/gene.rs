@@ -12,13 +12,13 @@ pub struct Gene {
     /// Used to identify the gene
     pub id: String,
     /// Human Readable Gene Name
-    name: Option<String>,
+    pub(crate) name: Option<String>,
     /// Whether this gene is currently active (see [`GeneActivity`])
-    activity: GeneActivity,
+    pub(crate) activity: GeneActivity,
     /// Notes about the gene
-    notes: Option<String>,
+    pub(crate) notes: Option<String>,
     /// Gene Annotations
-    annotation: Option<String>,
+    pub(crate) annotation: Option<String>,
 }
 
 impl Gene {
@@ -190,7 +190,7 @@ pub enum GprError {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::gene::{Gene, GeneActivity, Gpr, GprOperation};
+    use crate::metabolic_model::gene::{Gene, GeneActivity, Gpr, GprOperation};
     use std::cell::RefCell;
     use std::rc::Rc;
 

@@ -6,19 +6,19 @@ use std::hash::Hash;
 #[derive(Debug, Clone)]
 pub struct Metabolite {
     /// Used to identify the metabolite (must be unique)
-    id: String,
+    pub(crate) id: String,
     /// Human Readable name of the metabolite
-    name: Option<String>,
+    pub(crate) name: Option<String>,
     /// Which compartment the metabolite is in
-    compartment: Option<String>,
+    pub(crate) compartment: Option<String>,
     /// Electrical charge of the Metabolite
-    charge: i32,
+    pub(crate) charge: i32,
     /// Chemical Formula of the metabolite
-    formula: Option<String>,
+    pub(crate) formula: Option<String>,
     /// Notes about the metabolite
-    notes: Option<String>,
+    pub(crate) notes: Option<String>,
     /// Metabolite annotations
-    annotation: Option<String>,
+    pub(crate) annotation: Option<String>,
 
 }
 
