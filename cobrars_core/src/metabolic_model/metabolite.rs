@@ -19,14 +19,15 @@ pub struct Metabolite {
     pub(crate) notes: Option<String>,
     /// Metabolite annotations
     pub(crate) annotation: Option<String>,
-
 }
 
 impl Hash for Metabolite {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.id.hash(state); // Hash by id
-        // If the metabolite has an associated compartment, also hash by that
-        if let Some(ref compartment) = self.compartment { compartment.hash(state) };
+                             // If the metabolite has an associated compartment, also hash by that
+        if let Some(ref compartment) = self.compartment {
+            compartment.hash(state)
+        };
     }
 }
 impl Metabolite {

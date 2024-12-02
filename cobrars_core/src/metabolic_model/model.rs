@@ -11,13 +11,36 @@ use std::rc::Rc;
 /// Represents a Genome Scale Metabolic Model
 pub struct Model {
     /// Map of reaction ids to Reaction Objects (which are wrapped in Rc<RefCell<>>)
-    pub(crate) reactions: IndexMap<String, Rc<RefCell<Reaction>>>,
+    pub reactions: IndexMap<String, Rc<RefCell<Reaction>>>,
     /// Map of gene ids to Gene Objects (which are wrapped in Rc<RefCell<>>)
-    pub(crate) genes: IndexMap<String, Rc<RefCell<Gene>>>,
+    pub genes: IndexMap<String, Rc<RefCell<Gene>>>,
     /// Map of metabolite ids to Metabolite Objects (which are wrapped in Rc<RefCell<>>)
-    pub(crate) metabolites: IndexMap<String, Rc<RefCell<Metabolite>>>,
+    pub metabolites: IndexMap<String, Rc<RefCell<Metabolite>>>,
     /// Map of reaction ids to objective function coefficients
-    pub(crate) objective: IndexMap<String, f64>,
+    pub objective: IndexMap<String, f64>,
     /// Underlying optimization problem
-    pub(crate) problem: Option<Problem>,
+    pub problem: Option<Problem>,
+    /// Id associated with the Model
+    pub id: Option<String>,
+    /// Compartments in the model
+    ///
+    /// An IndexMap<String, String> of {short name: long name}
+    pub compartments: Option<IndexMap<String, String>>,
+    /// A version identifier for the Model, stored as a string
+    pub version: Option<String>,
+}
+
+impl Model {
+    pub fn new_empty(id: String) -> Self {
+        Model {
+            reactions: IndexMap::new(),
+            genes: IndexMap::new(),
+            metabolites: IndexMap::new(),
+            objective: IndexMap::new(),
+            problem: None,
+            id: Some(id),
+            compartments: None,
+            version: None,
+        }
+    }
 }

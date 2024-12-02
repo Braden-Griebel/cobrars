@@ -50,8 +50,8 @@ impl Reaction {
             gpr,
             lower_bound,
             upper_bound,
-            subsystem, 
-            notes, 
+            subsystem,
+            notes,
             annotation,
         }))
     }

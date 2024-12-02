@@ -2,14 +2,8 @@
 
 use crate::optimize::solvers::{BasicSolver, QuadraticSolver};
 
-pub struct ClarabelSolver{
-    
-}
+pub struct ClarabelSolver {}
 
-impl BasicSolver for ClarabelSolver {
-    
-}
+impl BasicSolver for ClarabelSolver {}
 
-impl QuadraticSolver for ClarabelSolver {
-    
-}
+impl QuadraticSolver for ClarabelSolver {}

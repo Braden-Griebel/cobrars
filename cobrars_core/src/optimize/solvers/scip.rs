@@ -2,14 +2,8 @@
 
 use crate::optimize::solvers::{BasicSolver, MixedIntegerSolver};
 
-struct RusscipSolver {
-    
-}
+struct RusscipSolver {}
 
-impl BasicSolver for RusscipSolver {
-    
-}
+impl BasicSolver for RusscipSolver {}
 
-impl MixedIntegerSolver for RusscipSolver {
-    
-}
+impl MixedIntegerSolver for RusscipSolver {}

@@ -3,7 +3,7 @@
 use std::borrow::Borrow;
 use std::collections::VecDeque;
 
-use thiserror::{Error};
+use thiserror::Error;
 
 use crate::io::gpr_parse::token::Token;
 

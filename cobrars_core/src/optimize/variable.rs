@@ -43,7 +43,7 @@ impl Variable {
             upper_bound,
         }))
     }
-    
+
     pub(crate) fn get_id(&self) -> String {
         self.id.clone()
     }

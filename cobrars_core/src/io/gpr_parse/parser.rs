@@ -1,5 +1,7 @@
 use crate::io::gpr_parse::token::Token;
-use crate::metabolic_model::gene::{Gene, GeneActivity, Gpr, GprError, GprOperation, GprOperatorType};
+use crate::metabolic_model::gene::{
+    Gene, GeneActivity, Gpr, GprError, GprOperation, GprOperatorType,
+};
 
 use indexmap::IndexMap;
 use serde::Deserialize;
@@ -29,7 +31,10 @@ pub struct GPRParser<'gm> {
 
 impl<'gm> GPRParser<'gm> {
     /// Create a new GPRParser
-    pub fn new(tokens: Vec<Token>, gene_map: &mut IndexMap<String, Rc<RefCell<Gene>>>) -> GPRParser {
+    pub fn new(
+        tokens: Vec<Token>,
+        gene_map: &mut IndexMap<String, Rc<RefCell<Gene>>>,
+    ) -> GPRParser {
         GPRParser {
             tokens,
             current: 0,

@@ -10,7 +10,6 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::path::Path;
 use std::rc::Rc;
@@ -23,6 +22,9 @@ struct JsonModel {
     metabolites: Vec<JsonMetabolite>,
     reactions: Vec<JsonReaction>,
     genes: Vec<JsonGene>,
+    id: Option<String>,
+    compartments: Option<IndexMap<String, String>>,
+    version: Option<String>,
 }
 
 impl JsonModel {
@@ -30,11 +32,11 @@ impl JsonModel {
     pub fn read_to_json_model<P: AsRef<Path>>(path: P) -> Result<JsonModel, IoError> {
         let json_data = match read_to_string(path) {
             Ok(data) => data,
-            _ => { return Err(IoError::FileNotFound) }
+            _ => return Err(IoError::FileNotFound),
         };
         Ok(match serde_json::from_str(&json_data) {
             Ok(model) => model,
-            Err(e) => { return Err(IoError::DeserializeError) }
+            Err(e) => return Err(IoError::DeserializeError),
         })
     }
 }
@@ -54,7 +56,7 @@ struct JsonMetabolite {
 struct JsonReaction {
     id: String,
     name: Option<String>,
-    metabolites: HashMap<String, f64>,
+    metabolites: IndexMap<String, f64>,
     lower_bound: f64,
     upper_bound: f64,
     gene_reaction_rule: String,
@@ -77,12 +79,12 @@ struct JsonGene {
 impl From<JsonGene> for Gene {
     fn from(g: JsonGene) -> Self {
         /* For now this just converts the notes and annotations into a JSON string,
-        which isn't ideal, but the data isn't very structured, so it would require a lot of 
-        maintenance to unpack more than this. This needs to be revisted when additional 
-        model file types are supported. 
+        which isn't ideal, but the data isn't very structured, so it would require a lot of
+        maintenance to unpack more than this. This needs to be revisted when additional
+        model file types are supported.
         TODO: Update this to be compatible with other file types
-        (Potentially, the other file types versions of this could just be converted into 
-        json structured data as well and still stored as stings like this) 
+        (Potentially, the other file types versions of this could just be converted into
+        json structured data as well and still stored as stings like this)
         */
         Self {
             id: g.id,
@@ -109,15 +111,14 @@ impl From<JsonMetabolite> for Metabolite {
 }
 
 impl Model {
-    
     pub fn read_json<P: AsRef<Path>>(path: P) -> Result<Model, JsonError> {
-        let model_str = match read_to_string(path){
+        let model_str = match read_to_string(path) {
             Ok(data) => data,
-            Err(err) => return Err(JsonError::UnableToRead(format!("{:?}", err)))
+            Err(err) => return Err(JsonError::UnableToRead(format!("{:?}", err))),
         };
         let json_model = match serde_json::from_str::<JsonModel>(&model_str) {
             Ok(model) => model,
-            Err(err)=> return Err(JsonError::UnableToParse(format!("{:?}", err)))
+            Err(err) => return Err(JsonError::UnableToParse(format!("{:?}", err))),
         };
         Model::from_json(json_model)
     }
@@ -133,28 +134,23 @@ impl Model {
         json_model.metabolites.into_iter().for_each(|m| {
             metabolites.insert(m.id.clone(), Rc::new(RefCell::new(Metabolite::from(m))));
         });
-        /* Now, iterate through the reactions, parsing GPRs, and adding to 
+        /* Now, iterate through the reactions, parsing GPRs, and adding to
         the objective along the way
         */
         for rxn in json_model.reactions {
-            let gpr =
-                if rxn.gene_reaction_rule.len() > 0 {
-                    Some(parse_gpr(&rxn.gene_reaction_rule, &mut genes)?)
-                } else {
-                    None
-                };
-            let mut metabolites = IndexMap::new();
-            rxn.metabolites.into_iter().for_each(|(met, coef)| {
-                metabolites.insert(met, coef);
-            });
+            let gpr = if !rxn.gene_reaction_rule.is_empty() {
+                Some(parse_gpr(&rxn.gene_reaction_rule, &mut genes)?)
+            } else {
+                None
+            };
             let new_reaction = Reaction::new_wrapped(
-                rxn.id.clone(), 
-                metabolites, 
-                rxn.name, 
-                gpr, 
-                rxn.lower_bound, 
+                rxn.id.clone(),
+                rxn.metabolites,
+                rxn.name,
+                gpr,
+                rxn.lower_bound,
                 rxn.upper_bound,
-                rxn.subsystem, 
+                rxn.subsystem,
                 rxn.notes.map(|v| v.to_string()),
                 rxn.annotation.map(|v| v.to_string()),
             );
@@ -170,6 +166,9 @@ impl Model {
             metabolites,
             objective,
             problem: None,
+            id: json_model.id,
+            compartments: json_model.compartments,
+            version: json_model.version,
         })
     }
 }
@@ -394,7 +393,10 @@ mod json_tests {
         assert!((reaction.lower_bound - 0.0).abs() < 1e-25);
         assert!((reaction.upper_bound - 1000.0).abs() < 1e-25);
         assert_eq!(reaction.gene_reaction_rule, "b3916 or b1723");
-        assert_eq!(reaction.subsystem.clone().unwrap(), "Glycolysis/Gluconeogenesis");
+        assert_eq!(
+            reaction.subsystem.clone().unwrap(),
+            "Glycolysis/Gluconeogenesis"
+        );
 
         // Tests for a gene
         assert_eq!(gene.id, "b1241");
@@ -542,8 +544,11 @@ mod model_tests {
 
         // Tests for the reaction
         assert_eq!(reaction.borrow().id, "PFK");
-        assert_eq!(reaction.borrow().name.clone().unwrap(), "Phosphofructokinase");
-        let mut expected_reactions: HashMap<String, f64> = HashMap::new();
+        assert_eq!(
+            reaction.borrow().name.clone().unwrap(),
+            "Phosphofructokinase"
+        );
+        let mut expected_reactions: IndexMap<String, f64> = IndexMap::new();
         expected_reactions.insert("adp_c".to_string(), 1.0);
         expected_reactions.insert("atp_c".to_string(), -1.0);
         expected_reactions.insert("f6p_c".to_string(), -1.0);
@@ -554,47 +559,50 @@ mod model_tests {
         }
         assert!((reaction.borrow().lower_bound - 0.0).abs() < 1e-25);
         assert!((reaction.borrow().upper_bound - 1000.0).abs() < 1e-25);
-        assert_eq!(reaction.borrow().subsystem.clone().unwrap(), "Glycolysis/Gluconeogenesis");
+        assert_eq!(
+            reaction.borrow().subsystem.clone().unwrap(),
+            "Glycolysis/Gluconeogenesis"
+        );
 
         match reaction.borrow().gpr {
             None => {}
-            Some(ref rule) => {
-                match rule {
-                    Gpr::Operation(op) => {
-                        match op {
-                            GprOperation::Or { left, right } => {
-                                match (**left).clone() {
-                                    Gpr::Gene(g) => {
-                                        if g.borrow().id != "b3916"{
-                                            panic!("Incorrect Parse")
-                                        }
-                                    }
-                                    _=>panic!("Incorrect Parse")
-                                };
-                                match (**right).clone() {
-                                    Gpr::Gene(g) => {
-                                        if g.borrow().id != "b1723"{
-                                            panic!("Incorrect Parse")
-                                        }
-                                    }
-                                    _=>panic!("Incorrect Parse")
-                                };
+            Some(ref rule) => match rule {
+                Gpr::Operation(op) => match op {
+                    GprOperation::Or { left, right } => {
+                        match (**left).clone() {
+                            Gpr::Gene(g) => {
+                                if g.borrow().id != "b3916" {
+                                    panic!("Incorrect Parse")
+                                }
                             }
-                            _=>{panic!("Incorrect Parse")}
-                        }
+                            _ => panic!("Incorrect Parse"),
+                        };
+                        match (**right).clone() {
+                            Gpr::Gene(g) => {
+                                if g.borrow().id != "b1723" {
+                                    panic!("Incorrect Parse")
+                                }
+                            }
+                            _ => panic!("Incorrect Parse"),
+                        };
                     }
-                    Gpr::Gene(_) => {panic!("Incorrect Parse")}
+                    _ => {
+                        panic!("Incorrect Parse")
+                    }
+                },
+                Gpr::Gene(_) => {
+                    panic!("Incorrect Parse")
                 }
-            }
+            },
         }
-        
+
         // Tests for a gene
         assert_eq!(gene.borrow().id, "b1241");
         assert_eq!(gene.borrow().name.clone().unwrap(), "adhE");
     }
-    
+
     #[test]
-    fn test_read_json(){
+    fn test_read_json() {
         let data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("test_data")
             .join("test_models")
@@ -613,8 +621,11 @@ mod model_tests {
 
         // Tests for the reaction
         assert_eq!(reaction.borrow().id, "PFK");
-        assert_eq!(reaction.borrow().name.clone().unwrap(), "Phosphofructokinase");
-        let mut expected_reactions: HashMap<String, f64> = HashMap::new();
+        assert_eq!(
+            reaction.borrow().name.clone().unwrap(),
+            "Phosphofructokinase"
+        );
+        let mut expected_reactions: IndexMap<String, f64> = IndexMap::new();
         expected_reactions.insert("adp_c".to_string(), 1.0);
         expected_reactions.insert("atp_c".to_string(), -1.0);
         expected_reactions.insert("f6p_c".to_string(), -1.0);
@@ -625,42 +636,57 @@ mod model_tests {
         }
         assert!((reaction.borrow().lower_bound - 0.0).abs() < 1e-25);
         assert!((reaction.borrow().upper_bound - 1000.0).abs() < 1e-25);
-        assert_eq!(reaction.borrow().subsystem.clone().unwrap(), "Glycolysis/Gluconeogenesis");
+        assert_eq!(
+            reaction.borrow().subsystem.clone().unwrap(),
+            "Glycolysis/Gluconeogenesis"
+        );
 
         match reaction.borrow().gpr {
             None => {}
-            Some(ref rule) => {
-                match rule {
-                    Gpr::Operation(op) => {
-                        match op {
-                            GprOperation::Or { left, right } => {
-                                match (**left).clone() {
-                                    Gpr::Gene(g) => {
-                                        if g.borrow().id != "b3916"{
-                                            panic!("Incorrect Parse")
-                                        }
-                                    }
-                                    _=>panic!("Incorrect Parse")
-                                };
-                                match (**right).clone() {
-                                    Gpr::Gene(g) => {
-                                        if g.borrow().id != "b1723"{
-                                            panic!("Incorrect Parse")
-                                        }
-                                    }
-                                    _=>panic!("Incorrect Parse")
-                                };
+            Some(ref rule) => match rule {
+                Gpr::Operation(op) => match op {
+                    GprOperation::Or { left, right } => {
+                        match (**left).clone() {
+                            Gpr::Gene(g) => {
+                                if g.borrow().id != "b3916" {
+                                    panic!("Incorrect Parse")
+                                }
                             }
-                            _=>{panic!("Incorrect Parse")}
-                        }
+                            _ => panic!("Incorrect Parse"),
+                        };
+                        match (**right).clone() {
+                            Gpr::Gene(g) => {
+                                if g.borrow().id != "b1723" {
+                                    panic!("Incorrect Parse")
+                                }
+                            }
+                            _ => panic!("Incorrect Parse"),
+                        };
                     }
-                    Gpr::Gene(_) => {panic!("Incorrect Parse")}
+                    _ => {
+                        panic!("Incorrect Parse")
+                    }
+                },
+                Gpr::Gene(_) => {
+                    panic!("Incorrect Parse")
                 }
-            }
+            },
         }
-        
+
         // Tests for a gene
         assert_eq!(gene.borrow().id, "b1241");
         assert_eq!(gene.borrow().name.clone().unwrap(), "adhE");
+
+        // Tests for id
+        assert_eq!(model.id.clone().unwrap(), "e_coli_core");
+
+        // Tests for version
+        assert_eq!(model.version.clone().unwrap(), "1");
+
+        // Tests for compartments
+        let mut expected_compartments: IndexMap<String, String> = IndexMap::new();
+        expected_compartments.insert("c".to_string(), "cytosol".to_string());
+        expected_compartments.insert("e".to_string(), "extracellular space".to_string());
+        assert_eq!(model.compartments.clone().unwrap(), expected_compartments);
     }
 }
