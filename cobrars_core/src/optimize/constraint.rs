@@ -1,7 +1,7 @@
 //! Provides struct for representing a constraint in an optimization problem
-use std::rc::Rc;
-use std::fmt::{Display, Formatter};
 use crate::optimize::variable::Variable;
+use std::fmt::{Display, Formatter};
+use std::rc::Rc;
 
 /// Represents a linear constraint in an optimization problem
 pub struct Constraint {
@@ -16,20 +16,19 @@ pub struct Constraint {
 impl Display for Constraint {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         if self.lhs.is_empty() {
-            return write!(f, "Empty Constraint")
+            return write!(f, "Empty Constraint");
         }
         let mut string_rep = String::new();
         // Iterate through all but the last term (so the + are correct)
         for term in &self.lhs[..self.lhs.len() - 1] {
             string_rep.push_str(format!("{} + ", term).as_str());
         }
-        string_rep.push_str(format!("{}", self.lhs[self.lhs.len()-1]).as_str());
+        string_rep.push_str(format!("{}", self.lhs[self.lhs.len() - 1]).as_str());
         string_rep.push_str(format!(" {} ", self.constraint_type).as_str());
         string_rep.push_str(format!("{}", self.rhs).as_str());
         write!(f, "{}", string_rep)
     }
 }
-
 
 /// Enum representing the different types of constraints
 pub enum ConstraintType {

@@ -1,5 +1,7 @@
 //! Module providing representation of optimization problem variables
+use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
+use std::rc::Rc;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Variable {
@@ -11,10 +13,27 @@ pub struct Variable {
 
 impl Variable {
     /// Create a new variable
-    fn new(id: String, name: Option<String>, variable_type: VariableType, index: usize) -> Variable {
-        Variable {
-            id, name, variable_type, index,
-        }
+    ///
+    /// # Parameters
+    /// - id: Variable identifier string
+    /// - name: Variable name (optional)
+    /// - variable_type: Type of variable, Continuous, Integer, or Binary (see [`VariableType`]
+    /// - index: Index of the variable, only meaningful when part of a problem
+    ///
+    /// # Returns
+    /// A new variable, wrapped in Rc<RefCell<>>
+    fn new(
+        id: String,
+        name: Option<String>,
+        variable_type: VariableType,
+        index: usize,
+    ) -> Rc<RefCell<Variable>> {
+        Rc::new(RefCell::new(Variable {
+            id,
+            name,
+            variable_type,
+            index,
+        }))
     }
 }
 
@@ -26,7 +45,6 @@ impl Display for Variable {
         }
     }
 }
-
 
 /// Represents the type of variable in an optimization problem
 ///

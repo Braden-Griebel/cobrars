@@ -6,14 +6,18 @@ use pyo3::prelude::*;
 
 #[pyclass]
 struct PyGene {
-    inner: cobrars_core::core::gene::Gene,
+    inner: cobrars_core::model::gene::Gene,
 }
 
 #[pymethods]
 impl PyGene {
     #[new]
     fn new(id: String) -> Self {
-        let inner_gene = cobrars_core::core::gene::Gene::new(id, None, cobrars_core::core::gene::GeneActivity::Active);
+        let inner_gene = cobrars_core::model::gene::Gene::new(
+            id,
+            None,
+            cobrars_core::model::gene::GeneActivity::Active,
+        );
         PyGene { inner: inner_gene }
     }
 
@@ -21,7 +25,6 @@ impl PyGene {
         self.inner.id.clone()
     }
 }
-
 
 #[pyfunction]
 fn hello_from_bin() -> String {
