@@ -24,7 +24,9 @@ pub struct Metabolite {
 
 impl Hash for Metabolite {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.id.hash(state); // Hash only depends on id
+        self.id.hash(state); // Hash by id
+        // If the metabolite has an associated compartment, also hash by that
+        if let Some(ref compartment) = self.compartment { compartment.hash(state) };
     }
 }
 impl Metabolite {

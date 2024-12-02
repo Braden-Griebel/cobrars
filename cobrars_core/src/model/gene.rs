@@ -65,6 +65,7 @@ pub enum GeneActivity {
 }
 
 /// Representation of a Gene Protein Reaction Rule as an AST
+#[derive(Clone, Debug, PartialEq)]
 pub enum Gpr {
     /// Operation on two genes (see [`GprOperation`])
     Operation(GprOperation),
@@ -169,6 +170,7 @@ impl Display for Gpr {
 }
 
 /// Possible operations on genes
+#[derive(Clone, Debug, PartialEq)]
 pub enum GprOperation {
     Or { left: Box<Gpr>, right: Box<Gpr> },
     And { left: Box<Gpr>, right: Box<Gpr> },

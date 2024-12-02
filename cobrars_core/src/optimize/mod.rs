@@ -1,5 +1,5 @@
 mod constraint;
 mod objective;
-mod problem;
+pub(crate) mod problem;
 mod solvers;
 mod variable;

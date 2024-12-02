@@ -13,7 +13,7 @@ pub struct Problem {
     /// Variables of the optimization problem
     variables: IndexMap<String, Rc<RefCell<Variable>>>,
     /// Constraints of the optimization problem
-    constraints: IndexMap<String, Constraint>,
+    constraints: IndexMap<String, Rc<RefCell<Constraint>>>,
     /// Current status of the optimization problem
     status: OptimizationStatus,
     /// Values of the optimized variables. Will be None before optimization,

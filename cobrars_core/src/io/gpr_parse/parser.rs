@@ -6,6 +6,7 @@ use serde::Deserialize;
 use std::cell::RefCell;
 use std::io::BufRead;
 use std::rc::Rc;
+use thiserror::Error;
 /*
 GPR Grammar:
 expression -> binary
@@ -197,17 +198,22 @@ impl GPRParser {
 }
 
 /// Enum representing possible parse errors
-#[derive(Debug)]
+#[derive(Debug, Error, PartialEq)]
 pub enum ParseError {
     /// Token was expected to be a binary operator but was not
+    #[error("Invalid binary operator encountered, expected only `and` and `or`")]
     InvalidBinaryOperator,
     /// Token was expected to be a unary operator but was not
+    #[error("Invalid unary operator encountered, expected only `not`")]
     InvalidUnaryOperator,
     /// Missing expected token (e.g. a right parenthesis)
+    #[error("Missing expected token: {0}")]
     MissingToken(String),
     /// No expression found when one was expected
+    #[error("No expression found, check that the GPR string is not empty")]
     ExpectedExpression,
     /// Expression was not completed when parsing terminated
+    #[error("Parsing terminated early, check for a `not` between two gene identifiers/grouped expressions")]
     EarlyTermination,
 }
 
@@ -459,16 +465,6 @@ mod tests {
         let mut lexer = Lexer::new("Rv0001 not Rv0023");
         let token_vec: Vec<Token> = lexer.lex().unwrap();
         let mut parser = GPRParser::new(token_vec, IndexMap::new());
-        match parser.parse() {
-            Ok(gpr) => {
-                println!("{}", gpr.to_string_id())
-            }
-            Err(err) => match err {
-                ParseError::EarlyTermination => {}
-                _ => {
-                    panic!("Should have errored")
-                }
-            },
-        }
+        assert_eq!(parser.parse(), Err(ParseError::EarlyTermination));
     }
 }

@@ -3,22 +3,26 @@ use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Variable {
-    id: String,
+    pub(crate) id: String,
     name: Option<String>,
     variable_type: VariableType,
     index: usize,
+    lower_bound: f64,
+    upper_bound: f64,
 }
 
 impl Variable {
     /// Create a new variable
     ///
     /// # Parameters
-    /// - id: Variable identifier string
-    /// - name: Variable name (optional)
-    /// - variable_type: Type of variable, Continuous, Integer, or Binary (see [`VariableType`]
-    /// - index: Index of the variable, only meaningful when part of a problem
+    /// - `id`: Variable identifier string
+    /// - `name`: Variable name (optional)
+    /// - `variable_type`: Type of variable, Continuous, Integer, or Binary (see [`VariableType`])
+    /// - `index`: Index of the variable, only meaningful when part of a problem
+    /// - `lower_bound`: Lower bound of the variable
+    /// - `upper_bound`: Upper bound of the variable
     ///
     /// # Returns
     /// A new variable, wrapped in Rc<RefCell<>>
@@ -27,13 +31,21 @@ impl Variable {
         name: Option<String>,
         variable_type: VariableType,
         index: usize,
+        lower_bound: f64,
+        upper_bound: f64,
     ) -> Rc<RefCell<Variable>> {
         Rc::new(RefCell::new(Variable {
             id,
             name,
             variable_type,
             index,
+            lower_bound,
+            upper_bound,
         }))
+    }
+    
+    pub(crate) fn get_id(&self) -> String {
+        self.id.clone()
     }
 }
 

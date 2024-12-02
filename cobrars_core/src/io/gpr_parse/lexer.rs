@@ -3,6 +3,8 @@
 use std::borrow::Borrow;
 use std::collections::VecDeque;
 
+use thiserror::{Error};
+
 use crate::io::gpr_parse::token::Token;
 
 /// Struct for lexing a GPR string into a token stream
@@ -116,8 +118,9 @@ impl Lexer {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum LexerError {
+    #[error("Invalid token encountered during lexing: {0}, only expected alphanumeric gene identifiers, `and`, `or`, `not` and parenthesis")]
     InvalidToken(String),
 }
 

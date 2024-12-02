@@ -2,6 +2,7 @@
 use crate::model::gene::Gene;
 use crate::model::metabolite::Metabolite;
 use crate::model::reaction::Reaction;
+use crate::optimize::problem::Problem;
 
 use indexmap::IndexMap;
 use std::cell::RefCell;
@@ -11,14 +12,5 @@ struct Model {
     reactions: IndexMap<String, Reaction>,
     genes: IndexMap<String, Rc<RefCell<Gene>>>,
     metabolites: IndexMap<String, Metabolite>,
-    serialized_from: SerializedFrom,
-}
-
-
-
-pub(crate) enum SerializedFrom {
-    None,
-    Json,
-    Yaml,
-    Mat,
+    problem: Option<Problem>,
 }

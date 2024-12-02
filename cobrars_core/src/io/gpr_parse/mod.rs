@@ -6,6 +6,7 @@ use crate::model::gene::{Gene, Gpr};
 use indexmap::IndexMap;
 use std::cell::RefCell;
 use std::rc::Rc;
+use thiserror::Error;
 
 mod lexer;
 mod parser;
@@ -36,48 +37,27 @@ pub fn parse_gpr(
     // Start by creating a lexer
     let mut lexer = lexer::Lexer::new(input);
     // Convert the GPR string into tokens
-    let tokens = match lexer.lex() {
-        Ok(t) => t,
-        Err(e) => {
-            return Err(match e {
-                LexerError::InvalidToken(s) => GprParseError::InvalidToken(s),
-            })
-        }
-    };
+    let tokens = lexer.lex()?;
 
     // Now parse those tokens into a GPR tree
     // first, if no gene_map is provided, create one
-    let gene_map = gene_map.unwrap_or_else(|| IndexMap::new());
+    let gene_map = gene_map.unwrap_or_default();
     // Create the parser
     let mut parser = parser::GPRParser::new(tokens, gene_map);
     // Parse the expression
-    match parser.parse() {
-        Ok(gpr) => Ok((gpr, parser.gene_map)),
-        Err(e) => Err(match e {
-            ParseError::InvalidBinaryOperator => GprParseError::InvalidBinaryOperator,
-            ParseError::InvalidUnaryOperator => GprParseError::InvalidUnaryOperator,
-            ParseError::MissingToken(s) => GprParseError::MissingToken(s),
-            ParseError::ExpectedExpression => GprParseError::ExpectedExpression,
-            ParseError::EarlyTermination => GprParseError::EarlyTermination,
-        }),
-    }
+    let gpr = parser.parse()?;
+    Ok((gpr, parser.gene_map))
 }
 
 /// Enum representing possible lex and parse errors
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum GprParseError {
-    /// Invalid token found in
-    InvalidToken(String),
-    /// Token was expected to be a binary operator but was not
-    InvalidBinaryOperator,
-    /// Token was expected to be a unary operator but was not
-    InvalidUnaryOperator,
-    /// Missing expected token (e.g. a right parenthesis)
-    MissingToken(String),
-    /// No expression found when one was expected
-    ExpectedExpression,
-    /// Expression was not completed when parsing terminated
-    EarlyTermination,
+    /// Lexing Error
+    #[error("Error occurred during lexing (conversion of GPR string to tokens)")]
+    LexingError(#[from] LexerError),
+    /// Parsing Error
+    #[error("Error occurred during parsing (conversion of tokens to GPR tree)")]
+    ParsingError(#[from] ParseError),
 }
 
 #[cfg(test)]
