@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 /// Represents the Objective of an optimization problem
+#[derive(Debug, Clone)]
 pub struct Objective {
     /// Terms included in the objective (See [`ObjectiveTerm`]
     terms: Vec<ObjectiveTerm>,
@@ -13,6 +14,7 @@ pub struct Objective {
 }
 
 /// Represents the sense of the objective, whether it should be maximized or minimized
+#[derive(Debug, Clone, Copy)]
 pub enum ObjectiveSense {
     /// The objective should be minimized
     Minimize,
@@ -22,6 +24,7 @@ pub enum ObjectiveSense {
 
 // region Objective Terms
 /// A term in the objective
+#[derive(Debug, Clone)]
 pub enum ObjectiveTerm {
     /// A quadratic term in the objective
     Quadratic {

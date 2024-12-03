@@ -6,6 +6,7 @@ use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
 /// Represents a linear constraint in an optimization problem
+#[derive(Debug, Clone)]
 pub enum Constraint {
     /// Represents an equality constraint, where `terms` = `equals`
     Equality {
@@ -59,6 +60,7 @@ impl Display for Constraint {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ConstraintTerm {
     variable: Rc<RefCell<Variable>>,
     coef: f64,

@@ -5,7 +5,7 @@ use crate::io::IoError;
 use crate::metabolic_model::gene::{Gene, GeneActivity};
 use crate::metabolic_model::metabolite::Metabolite;
 use crate::metabolic_model::model::Model;
-use crate::metabolic_model::reaction::Reaction;
+use crate::metabolic_model::reaction::{Reaction, ReactionBuilder, ReactionBuilderError};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -143,17 +143,17 @@ impl Model {
             } else {
                 None
             };
-            let new_reaction = Reaction::new_wrapped(
-                rxn.id.clone(),
-                rxn.metabolites,
-                rxn.name,
-                gpr,
-                rxn.lower_bound,
-                rxn.upper_bound,
-                rxn.subsystem,
-                rxn.notes.map(|v| v.to_string()),
-                rxn.annotation.map(|v| v.to_string()),
-            );
+            let new_reaction = Rc::new(RefCell::new(ReactionBuilder::default()
+                .id(rxn.id.clone())
+                .metabolites(rxn.metabolites)
+                .name(rxn.name)
+                .gpr(gpr)
+                .lower_bound(rxn.lower_bound)
+                .upper_bound(rxn.upper_bound)
+                .subsystem(rxn.subsystem)
+                .notes(rxn.notes.map(|v| v.to_string()))
+                .annotation(rxn.annotation.map(|v| v.to_string()))
+                .build()?));
             reactions.insert(rxn.id.clone(), new_reaction);
             // Add the reaction to the objective function if desired
             if let Some(coef) = rxn.objective_coefficient {
@@ -181,6 +181,8 @@ pub enum JsonError {
     UnableToRead(String),
     #[error("Unable to parse json due to {0}")]
     UnableToParse(String),
+    #[error("Unable to build reaction")]
+    UnableToBuildReaction(#[from] ReactionBuilderError)
 }
 
 // endregion Conversions

@@ -1,60 +1,45 @@
 //! This module provides a struct for representing reactions
+use derive_builder::Builder;
 use super::gene::Gpr;
 use crate::utils::hashing::hash_as_hex_string;
+use crate::configuration::CONFIGURATION;
 use indexmap::IndexMap;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 /// Represents a reaction in the metabolic model
+#[derive(Builder, Debug, Clone)]
 pub struct Reaction {
-    /// Used to identify the reaction
+    /// Used to identify the reaction 
     pub id: String,
     /// Metabolite stoichiometry of the reaction
+    #[builder(default = "IndexMap::new()")]
     pub metabolites: IndexMap<String, f64>,
     /// Human-readable reaction name
+    #[builder(default = "None")]
     pub name: Option<String>,
     /// Gene Protein Reaction rule to determine if reaction is active
+    #[builder(default = "None")]
     pub gpr: Option<Gpr>,
     /// Lower flux bound
+    #[builder(default = "CONFIGURATION.lock().unwrap().lower_bound")]
     pub lower_bound: f64,
     /// Upper flux bound
+    #[builder(default = "CONFIGURATION.lock().unwrap().upper_bound")]
     pub upper_bound: f64,
     /// Reaction subsystem
+    #[builder(default = "None")]
     pub subsystem: Option<String>,
     /// Notes about the reaction
+    #[builder(default = "None")]
     pub notes: Option<String>,
     /// Reaction Annotations
+    #[builder(default = "None")]
     pub annotation: Option<String>,
 }
 
 impl Reaction {
-    /// Create a new reaction wrapped in a reference
-    ///
-    /// # Returns
-    /// A new reaction wrapped in a Rc<RefCell<>>
-    pub fn new_wrapped(
-        id: String,
-        metabolites: IndexMap<String, f64>,
-        name: Option<String>,
-        gpr: Option<Gpr>,
-        lower_bound: f64,
-        upper_bound: f64,
-        subsystem: Option<String>,
-        notes: Option<String>,
-        annotation: Option<String>,
-    ) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self {
-            id,
-            metabolites,
-            name,
-            gpr,
-            lower_bound,
-            upper_bound,
-            subsystem,
-            notes,
-            annotation,
-        }))
-    }
+    
     /// Determine the id to be associated with the forward reaction in the optimization problem
     ///
     /// # Note:

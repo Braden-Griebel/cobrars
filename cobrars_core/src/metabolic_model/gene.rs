@@ -6,19 +6,25 @@ use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::rc::Rc;
 
+use derive_builder::Builder;
+
 /// Structure Representing a Gene
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Builder, Clone, Debug, Eq, PartialEq)]
 pub struct Gene {
     /// Used to identify the gene
     pub id: String,
     /// Human Readable Gene Name
-    pub(crate) name: Option<String>,
+    #[builder(default="None")]
+    pub name: Option<String>,
     /// Whether this gene is currently active (see [`GeneActivity`])
-    pub(crate) activity: GeneActivity,
+    #[builder(default="GeneActivity::Active")]
+    pub activity: GeneActivity,
     /// Notes about the gene
-    pub(crate) notes: Option<String>,
+    #[builder(default="None")]
+    pub notes: Option<String>,
     /// Gene Annotations
-    pub(crate) annotation: Option<String>,
+    #[builder(default="None")]
+    pub annotation: Option<String>,
 }
 
 impl Gene {
@@ -29,13 +35,7 @@ impl Gene {
         notes: Option<String>,
         annotation: Option<String>,
     ) -> Gene {
-        Gene {
-            id,
-            name,
-            activity,
-            notes,
-            annotation,
-        }
+        GeneBuilder::default().id(id).name(name).activity(activity).notes(notes).annotation(annotation).build().unwrap()
     }
 }
 

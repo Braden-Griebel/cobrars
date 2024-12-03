@@ -7,6 +7,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 /// An optimization problem
+#[derive(Debug, Clone)]
 pub struct Problem {
     /// Objective to optimize
     objective: Objective,
@@ -27,6 +28,7 @@ pub struct Problem {
 }
 
 /// Status of an optimization problem
+#[derive(Clone, Debug)]
 pub enum OptimizationStatus {
     /// Problem has not yet attempted to be optimized
     UnOptimized,
@@ -39,6 +41,7 @@ pub enum OptimizationStatus {
 }
 
 /// Types of optimization problems
+#[derive(Clone, Debug)]
 pub enum ProblemType {
     /// Problem with linear objectives and constraints, and continuous variables
     LinearContinuous,

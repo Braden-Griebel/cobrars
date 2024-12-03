@@ -9,6 +9,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 /// Represents a Genome Scale Metabolic Model
+#[derive(Clone, Debug)]
 pub struct Model {
     /// Map of reaction ids to Reaction Objects (which are wrapped in Rc<RefCell<>>)
     pub reactions: IndexMap<String, Rc<RefCell<Reaction>>>,
@@ -42,5 +43,19 @@ impl Model {
             compartments: None,
             version: None,
         }
+    }
+    
+    /// Add a reaction to the model
+    /// 
+    /// # Parameters:
+    /// - reaction: Reaction to add
+    /// 
+    /// # Examples:
+    /// ```rust
+    /// use cobrars_core::metabolic_model::reaction::Reaction;
+    /// ```
+    pub fn add_reaction(&mut self, reaction: Reaction) {
+        let id = reaction.id.clone();
+        self.reactions.insert(id, Rc::new(RefCell::new(reaction)));
     }
 }
