@@ -1,6 +1,6 @@
 //! Provides struct for representing an optimization problem's object
 
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 use std::rc::Rc;
 
 use crate::optimize::variable::Variable;
@@ -12,6 +12,105 @@ pub struct Objective {
     terms: Vec<ObjectiveTerm>,
     /// Sense of the objective (maximize, or minimize), see [`ObjectiveSense`]
     sense: ObjectiveSense,
+}
+
+impl Objective {
+    /// Create a new empty objective, with a given sense
+    pub fn new(sense: ObjectiveSense) -> Self {
+        Self {
+            terms: Vec::new(),
+            sense,
+        }
+    }
+
+    /// Create a new empty maximization objective
+    pub fn new_maximize() -> Self {
+        Self::new(ObjectiveSense::Maximize)
+    }
+
+    /// Create a new empty minimization objective
+    pub fn new_minimize() -> Self {
+        Self::new(ObjectiveSense::Minimize)
+    }
+
+    /// Change the sense of the objective
+    pub fn set_sense(&mut self, sense: ObjectiveSense) {
+        self.sense = sense;
+    }
+
+    /// Add a new term to the objective
+    pub fn add_term(&mut self, term: ObjectiveTerm) {
+        self.terms.push(term);
+    }
+
+    /// Add a new Linear term to the objective
+    pub fn add_linear_term(&mut self, variable: Rc<RefCell<Variable>>, coefficient: f64) {
+        self.terms.push(ObjectiveTerm::Linear {
+            var: variable,
+            coef: coefficient,
+        });
+    }
+
+    /// Add a new Quadratic term to the objective
+    pub fn add_quadratic_term(
+        &mut self,
+        variable1: Rc<RefCell<Variable>>,
+        variable2: Rc<RefCell<Variable>>,
+        coefficient: f64,
+    ) {
+        self.terms.push(ObjectiveTerm::Quadratic {
+            var1: variable1,
+            var2: variable2,
+            coef: coefficient,
+        });
+    }
+
+    /// Add a series of linear terms to the objective function
+    pub fn add_linear_terms(&mut self, variables: &[Rc<RefCell<Variable>>], coefficient: &[f64]) {
+        self.terms
+            .extend(Objective::zip_linear_terms(variables, coefficient));
+    }
+
+    /// Add a series of quadratic terms to the objective function
+    pub fn add_quadratic_terms(
+        &mut self,
+        variables1: &[Rc<RefCell<Variable>>],
+        variables2: &[Rc<RefCell<Variable>>],
+        coefficients: &[f64],
+    ) {
+        self.terms.extend(Objective::zip_quadratic_terms(
+            variables1,
+            variables2,
+            coefficients,
+        ));
+    }
+
+    /// Zip together slice of variable references with coefficients to create linear terms
+    fn zip_linear_terms(
+        variables: &[Rc<RefCell<Variable>>],
+        coefficient: &[f64],
+    ) -> Vec<ObjectiveTerm> {
+        variables
+            .iter()
+            .zip(coefficient)
+            .map(|(var, coef)| ObjectiveTerm::new_linear(var.clone(), *coef))
+            .collect()
+    }
+
+    /// Zip together two slices of variable and references with coefficients to create quadratic
+    /// terms
+    fn zip_quadratic_terms(
+        variables1: &[Rc<RefCell<Variable>>],
+        variables2: &[Rc<RefCell<Variable>>],
+        coefficients: &[f64],
+    ) -> Vec<ObjectiveTerm> {
+        variables1
+            .iter()
+            .zip(variables2)
+            .zip(coefficients)
+            .map(|((v1, v2), c)| ObjectiveTerm::new_quadratic(v1.clone(), v2.clone(), *c))
+            .collect()
+    }
 }
 
 /// Represents the sense of the objective, whether it should be maximized or minimized
@@ -46,6 +145,7 @@ pub enum ObjectiveTerm {
 }
 
 impl ObjectiveTerm {
+    /// Create a new quadratic objective term
     pub fn new_quadratic(
         var1: Rc<RefCell<Variable>>,
         var2: Rc<RefCell<Variable>>,
@@ -54,6 +154,7 @@ impl ObjectiveTerm {
         ObjectiveTerm::Quadratic { var1, var2, coef }
     }
 
+    /// Create a new linear objective term
     pub fn new_linear(var: Rc<RefCell<Variable>>, coef: f64) -> Self {
         ObjectiveTerm::Linear { var, coef }
     }
