@@ -10,7 +10,9 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::cell::RefCell;
+use std::fs;
 use std::fs::read_to_string;
+use std::ops::Deref;
 use std::path::Path;
 use std::rc::Rc;
 use thiserror::Error;
@@ -110,6 +112,39 @@ impl From<JsonMetabolite> for Metabolite {
     }
 }
 
+impl From<Gene> for JsonGene {
+    fn from(g: Gene) -> Self {
+        Self {
+            id: g.id,
+            name: g.name,
+            notes: g
+                .notes
+                .map(|n| serde_json::from_str(&n).unwrap_or(Value::String(String::new()))),
+            annotation: g
+                .annotation
+                .map(|a| serde_json::from_str(&a).unwrap_or(Value::String(String::new()))),
+        }
+    }
+}
+
+impl From<Metabolite> for JsonMetabolite {
+    fn from(m: Metabolite) -> Self {
+        Self {
+            id: m.id,
+            name: m.name,
+            compartment: m.compartment,
+            charge: Some(m.charge),
+            formula: m.formula,
+            notes: m
+                .notes
+                .map(|n| serde_json::from_str(&n).unwrap_or(Value::String(String::new()))),
+            annotation: m
+                .annotation
+                .map(|a| serde_json::from_str(&a).unwrap_or(Value::String(String::new()))),
+        }
+    }
+}
+
 impl Model {
     pub fn read_json<P: AsRef<Path>>(path: P) -> Result<Model, JsonError> {
         let model_str = match read_to_string(path) {
@@ -122,6 +157,14 @@ impl Model {
         };
         Model::from_json(json_model)
     }
+    
+    pub fn write_json<P: AsRef<Path>>(&self, path: P) -> Result<(), JsonError> {
+        let json_model = self.to_json()?;
+        let model_string = serde_json::to_string(&json_model)?;
+        fs::write(path, model_string)?;
+        Ok(())
+    }
+    
     fn from_json(json_model: JsonModel) -> Result<Self, JsonError> {
         let mut reactions: IndexMap<String, Rc<RefCell<Reaction>>> = IndexMap::new();
         let mut genes: IndexMap<String, Rc<RefCell<Gene>>> = IndexMap::new();
@@ -143,17 +186,19 @@ impl Model {
             } else {
                 None
             };
-            let new_reaction = Rc::new(RefCell::new(ReactionBuilder::default()
-                .id(rxn.id.clone())
-                .metabolites(rxn.metabolites)
-                .name(rxn.name)
-                .gpr(gpr)
-                .lower_bound(rxn.lower_bound)
-                .upper_bound(rxn.upper_bound)
-                .subsystem(rxn.subsystem)
-                .notes(rxn.notes.map(|v| v.to_string()))
-                .annotation(rxn.annotation.map(|v| v.to_string()))
-                .build()?));
+            let new_reaction = Rc::new(RefCell::new(
+                ReactionBuilder::default()
+                    .id(rxn.id.clone())
+                    .metabolites(rxn.metabolites)
+                    .name(rxn.name)
+                    .gpr(gpr)
+                    .lower_bound(rxn.lower_bound)
+                    .upper_bound(rxn.upper_bound)
+                    .subsystem(rxn.subsystem)
+                    .notes(rxn.notes.map(|v| v.to_string()))
+                    .annotation(rxn.annotation.map(|v| v.to_string()))
+                    .build()?,
+            ));
             reactions.insert(rxn.id.clone(), new_reaction);
             // Add the reaction to the objective function if desired
             if let Some(coef) = rxn.objective_coefficient {
@@ -171,6 +216,42 @@ impl Model {
             version: json_model.version,
         })
     }
+    fn to_json(&self) -> Result<JsonModel, JsonError> {
+        let json_genes: Vec<JsonGene> = self.genes.iter().map(|(_, g)| (*g).borrow().clone().into()).collect();
+        let json_metabolites: Vec<JsonMetabolite> = self.metabolites.iter().map(|(_, m)| (*m).borrow().clone().into()).collect();
+        let json_id = self.id.clone().unwrap_or_default();
+        let json_compartments = self.compartments.clone();
+        let json_version = self.version.clone().unwrap_or_default();
+        let mut json_reactions: Vec<JsonReaction> = Vec::new();
+        for (_, r) in &self.reactions {
+            json_reactions.push(JsonReaction {
+                id: r.borrow().id.clone(),
+                name: r.borrow().name.clone(),
+                metabolites: Default::default(),
+                lower_bound: r.borrow().lower_bound,
+                upper_bound: r.borrow().upper_bound,
+                gene_reaction_rule: r.borrow().gpr.clone().map(|rule| rule.to_string_id()).unwrap_or(String::new()),
+                objective_coefficient: self.objective.get(&r.borrow().id).map(|c| c.clone()),
+                subsystem: r.borrow().subsystem.clone(),
+                notes: r.borrow().notes.clone().map(|n| 
+                    serde_json::from_str(&n).unwrap_or(Value::String(n))
+                ),
+                annotation: r.borrow().annotation.clone().map(|a|
+                    serde_json::from_str(&a).unwrap_or(Value::String(a))
+                ),
+            })
+        }
+        
+        Ok(JsonModel {
+            metabolites: json_metabolites,
+            reactions: json_reactions,
+            genes: json_genes,
+            id: None,
+            compartments: None,
+            version: None,
+        })
+        
+    }
 }
 
 #[derive(Error, Debug)]
@@ -182,7 +263,11 @@ pub enum JsonError {
     #[error("Unable to parse json due to {0}")]
     UnableToParse(String),
     #[error("Unable to build reaction")]
-    UnableToBuildReaction(#[from] ReactionBuilderError)
+    UnableToBuildReaction(#[from] ReactionBuilderError),
+    #[error("Serde json parse error")]
+    SerdeJsonParseError(#[from] serde_json::Error),
+    #[error("Unable to write to file")]
+    UnableToWrite(#[from] std::io::Error),
 }
 
 // endregion Conversions
@@ -408,6 +493,7 @@ mod json_tests {
 
 #[cfg(test)]
 mod model_tests {
+    use std::collections::HashMap;
     use super::*;
     use crate::metabolic_model::gene::{Gpr, GprOperation};
     use std::path::PathBuf;
@@ -690,5 +776,54 @@ mod model_tests {
         expected_compartments.insert("c".to_string(), "cytosol".to_string());
         expected_compartments.insert("e".to_string(), "extracellular space".to_string());
         assert_eq!(model.compartments.clone().unwrap(), expected_compartments);
+    }
+    
+    #[test]
+    fn test_to_json() {
+        // Read in the JSON model
+        let data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("test_data")
+            .join("test_models")
+            .join("e_coli_core.json");
+        let model = Model::read_json(data_path).unwrap();
+        
+        // Convert the model to a json string
+        let json_model = model.to_json().unwrap();
+        
+        // Check on the first metabolite, reaction, and gene
+        let met = json_model.metabolites.first().unwrap();
+        let reaction = json_model.reactions.first().unwrap();
+        let gene = json_model.genes.first().unwrap();
+        
+        // Metabolite tests
+        assert_eq!(met.id, "glc__D_e");
+        assert_eq!(met.name.clone().unwrap(), "D-Glucose");
+        assert_eq!(met.compartment.clone().unwrap(), "e");
+        assert_eq!(met.charge.unwrap(), 0);
+        assert_eq!(met.formula.clone().unwrap(), "C6H12O6");
+        
+        // Reaction tests
+        assert_eq!(reaction.id, "PFK");
+        assert_eq!(reaction.name.clone().unwrap(), "Phosphofructokinase");
+        let mut expected_reactions: HashMap<String, f64> = HashMap::new();
+        expected_reactions.insert("adp_c".to_string(), 1.0);
+        expected_reactions.insert("atp_c".to_string(), -1.0);
+        expected_reactions.insert("f6p_c".to_string(), -1.0);
+        expected_reactions.insert("fdp_c".to_string(), 1.0);
+        expected_reactions.insert("h_c".to_string(), 1.0);
+        for (k, v) in &reaction.metabolites {
+            assert!((v - expected_reactions.get(k).unwrap()).abs() < 1e-25);
+        }
+        assert!((reaction.lower_bound - 0.0).abs() < 1e-25);
+        assert!((reaction.upper_bound - 1000.0).abs() < 1e-25);
+        assert_eq!(reaction.gene_reaction_rule, "(b3916 or b1723)");
+        assert_eq!(
+            reaction.subsystem.clone().unwrap(),
+            "Glycolysis/Gluconeogenesis"
+        );
+        
+        // Tests for a gene
+        assert_eq!(gene.id, "b1241");
+        assert_eq!(gene.name.clone().unwrap(), "adhE");
     }
 }

@@ -14,16 +14,16 @@ pub struct Gene {
     /// Used to identify the gene
     pub id: String,
     /// Human Readable Gene Name
-    #[builder(default="None")]
+    #[builder(default = "None")]
     pub name: Option<String>,
     /// Whether this gene is currently active (see [`GeneActivity`])
-    #[builder(default="GeneActivity::Active")]
+    #[builder(default = "GeneActivity::Active")]
     pub activity: GeneActivity,
     /// Notes about the gene
-    #[builder(default="None")]
+    #[builder(default = "None")]
     pub notes: Option<String>,
     /// Gene Annotations
-    #[builder(default="None")]
+    #[builder(default = "None")]
     pub annotation: Option<String>,
 }
 
@@ -35,16 +35,20 @@ impl Gene {
         notes: Option<String>,
         annotation: Option<String>,
     ) -> Gene {
-        GeneBuilder::default().id(id).name(name).activity(activity).notes(notes).annotation(annotation).build().unwrap()
+        GeneBuilder::default()
+            .id(id)
+            .name(name)
+            .activity(activity)
+            .notes(notes)
+            .annotation(annotation)
+            .build()
+            .unwrap()
     }
 }
 
 impl Display for Gene {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match &self.name {
-            Some(s) => write!(f, "{}", s),
-            None => write!(f, "{}", self.id),
-        }
+        write!(f, "{}", self.id)
     }
 }
 
@@ -56,7 +60,7 @@ impl Hash for Gene {
 }
 
 /// Whether a gene is active or not
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Copy)]
 pub enum GeneActivity {
     /// Gene is considered active
     Active,
@@ -190,7 +194,8 @@ pub enum GprError {
 
 #[cfg(test)]
 mod tests {
-    use crate::metabolic_model::gene::{Gene, GeneActivity, Gpr, GprOperation};
+    use crate::metabolic_model::gene::{Gene, GeneActivity, GeneBuilder, Gpr, GprOperation};
+    use indexmap::IndexMap;
     use std::cell::RefCell;
     use std::rc::Rc;
 
@@ -340,11 +345,11 @@ mod tests {
         };
         let active_gene2_ref = Rc::new(RefCell::new(active_gene2));
         let active_gene2_node = Gpr::Gene(active_gene2_ref.clone());
-        let gpr_and_inactive = Gpr::Operation(GprOperation::Or {
+        let gpr_or_active = Gpr::Operation(GprOperation::Or {
             left: Box::new(active_gene1_node),
             right: Box::new(active_gene2_node),
         });
-        assert_eq!(gpr_and_inactive.eval(), GeneActivity::Active);
+        assert_eq!(gpr_or_active.eval(), GeneActivity::Active);
 
         // Test two Inactive genes
         let inactive_gene1 = Gene {
@@ -375,14 +380,14 @@ mod tests {
     #[test]
     fn test_not_node() {
         // Test Active Gene
-        let active_gene = Gene {
+        let active_gene1 = Gene {
             id: "Active1".to_string(),
             name: None,
             activity: GeneActivity::Active,
             notes: None,
             annotation: None,
         };
-        let active_gene_ref = Rc::new(RefCell::new(active_gene));
+        let active_gene_ref = Rc::new(RefCell::new(active_gene1));
         let active_gene_node = Gpr::Gene(active_gene_ref.clone());
         let active_not = Gpr::Operation(GprOperation::Not {
             val: Box::new(active_gene_node),
@@ -403,5 +408,148 @@ mod tests {
             val: Box::new(inactive_gene_node),
         });
         assert_eq!(inactive_not.eval(), GeneActivity::Active);
+    }
+
+    #[test]
+    fn test_display() {
+        // Test single gene display
+        let active_gene1 = Gene {
+            id: "Active1".to_string(),
+            name: None,
+            activity: GeneActivity::Active,
+            notes: None,
+            annotation: None,
+        };
+        let active_gene_ref = Rc::new(RefCell::new(active_gene1));
+        let active_gene_node = Gpr::Gene(active_gene_ref.clone());
+        assert_eq!(format!("{}", active_gene_node), "Active1");
+
+        // Test and gene display
+        let active_gene1 = Gene {
+            id: "Active1".to_string(),
+            name: None,
+            activity: GeneActivity::Active,
+            notes: None,
+            annotation: None,
+        };
+        let active_gene1_ref = Rc::new(RefCell::new(active_gene1));
+        let active_gene1_node = Gpr::Gene(active_gene1_ref.clone());
+        let active_gene2 = Gene {
+            id: "Active2".to_string(),
+            name: None,
+            activity: GeneActivity::Active,
+            notes: None,
+            annotation: None,
+        };
+        let active_gene2_ref = Rc::new(RefCell::new(active_gene2));
+        let active_gene2_node = Gpr::Gene(active_gene2_ref.clone());
+        let gpr_or_active = Gpr::Operation(GprOperation::Or {
+            left: Box::new(active_gene1_node),
+            right: Box::new(active_gene2_node),
+        });
+        assert_eq!(format!("{}", gpr_or_active), "(Active1 or Active2)");
+
+        // Test nested with parsing
+        use crate::io::gpr_parse::parse_gpr;
+        let rv0001 = Rc::new(RefCell::new(
+            GeneBuilder::default()
+                .id("Rv0001".to_string())
+                .annotation(None)
+                .activity(GeneActivity::Active)
+                .build()
+                .unwrap(),
+        ));
+        let rv0002 = Rc::new(RefCell::new(
+            GeneBuilder::default()
+                .id("Rv0002".to_string())
+                .annotation(None)
+                .activity(GeneActivity::Active)
+                .build()
+                .unwrap(),
+        ));
+        let rv0003 = Rc::new(RefCell::new(
+            GeneBuilder::default()
+                .id("Rv0003".to_string())
+                .annotation(None)
+                .activity(GeneActivity::Active)
+                .build()
+                .unwrap(),
+        ));
+        let mut gene_map = IndexMap::new();
+        gene_map.insert("Rv0001".to_string(), rv0001);
+        gene_map.insert("Rv0002".to_string(), rv0002);
+        gene_map.insert("Rv0003".to_string(), rv0003);
+        let gpr = parse_gpr("(Rv0001 and Rv0002) or Rv0003", &mut gene_map).unwrap();
+        // Note, because of how the display works, it will be very explicit with parenthesis
+        // so an extra pair will be wrapped around the entire expression
+        assert_eq!(format!("{}", gpr), "((Rv0001 and Rv0002) or Rv0003)");
+        
+        // Test chained binary operations
+        let rv0001 = Rc::new(RefCell::new(
+            GeneBuilder::default()
+                .id("Rv0001".to_string())
+                .annotation(None)
+                .activity(GeneActivity::Active)
+                .build()
+                .unwrap(),
+        ));
+        let rv0002 = Rc::new(RefCell::new(
+            GeneBuilder::default()
+                .id("Rv0002".to_string())
+                .annotation(None)
+                .activity(GeneActivity::Active)
+                .build()
+                .unwrap(),
+        ));
+        let rv0003 = Rc::new(RefCell::new(
+            GeneBuilder::default()
+                .id("Rv0003".to_string())
+                .annotation(None)
+                .activity(GeneActivity::Active)
+                .build()
+                .unwrap(),
+        ));
+        let mut gene_map = IndexMap::new();
+        gene_map.insert("Rv0001".to_string(), rv0001);
+        gene_map.insert("Rv0002".to_string(), rv0002);
+        gene_map.insert("Rv0003".to_string(), rv0003);
+        let gpr = parse_gpr("Rv0001 and Rv0002 or Rv0003", &mut gene_map).unwrap();
+        // Note, because of how the display works, it will be very explicit with parenthesis
+        // so an extra pair will be wrapped around the entire expression
+        assert_eq!(format!("{}", gpr), "((Rv0001 and Rv0002) or Rv0003)");
+        
+        // Test with Not
+        let rv0001 = Rc::new(RefCell::new(
+            GeneBuilder::default()
+                .id("Rv0001".to_string())
+                .annotation(None)
+                .activity(GeneActivity::Active)
+                .build()
+                .unwrap(),
+        ));
+        let rv0002 = Rc::new(RefCell::new(
+            GeneBuilder::default()
+                .id("Rv0002".to_string())
+                .annotation(None)
+                .activity(GeneActivity::Active)
+                .build()
+                .unwrap(),
+        ));
+        let rv0003 = Rc::new(RefCell::new(
+            GeneBuilder::default()
+                .id("Rv0003".to_string())
+                .annotation(None)
+                .activity(GeneActivity::Active)
+                .build()
+                .unwrap(),
+        ));
+        let mut gene_map = IndexMap::new();
+        gene_map.insert("Rv0001".to_string(), rv0001);
+        gene_map.insert("Rv0002".to_string(), rv0002);
+        gene_map.insert("Rv0003".to_string(), rv0003);
+        let gpr = parse_gpr("(Rv0001 and not Rv0002) or not Rv0003", &mut gene_map).unwrap();
+        // Note, because of how the display works, it will be very explicit with parenthesis
+        // so an extra pair will be wrapped around the entire expression
+        assert_eq!(format!("{}", gpr), "((Rv0001 and (not Rv0002)) or (not Rv0003))");
     }
 }

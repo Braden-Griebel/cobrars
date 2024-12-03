@@ -1,9 +1,5 @@
 //! Implements a solver interface for Clarabel
 
-use crate::optimize::solvers::{BasicSolver, QuadraticSolver};
+use crate::optimize::solvers::Solver;
 
 pub struct ClarabelSolver {}
-
-impl BasicSolver for ClarabelSolver {}
-
-impl QuadraticSolver for ClarabelSolver {}

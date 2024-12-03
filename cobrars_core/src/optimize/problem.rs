@@ -28,10 +28,10 @@ pub struct Problem {
 }
 
 /// Status of an optimization problem
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum OptimizationStatus {
     /// Problem has not yet attempted to be optimized
-    UnOptimized,
+    Unoptimized,
     /// Problem has been optimized
     Optimal,
     /// Problem can't be optimized because objective value is not bounded
