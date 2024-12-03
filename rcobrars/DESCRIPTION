@@ -1,11 +1,13 @@
 Package: rcobrars
-Title: What the Package Does (One Line, Title Case)
+Title: Constraint Based Metabolic Modeling
 Version: 0.0.0.9000
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+    person("Braden", "Griebel", , "bgriebel@uw.edu", role = c("aut", "cre"))
+Description: Analyze constraint based models of metabolism. Includes methods for basic 
+  Flux Balance Analysis (FBA). Additionally has methods for Flux Variability Analysis, 
+  integration of gene expression data (IMAT), and generation of Network Models of 
+  metabolism.
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2

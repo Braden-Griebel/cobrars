@@ -1,6 +1,5 @@
 [package]
 authors = ["Braden Griebel"]
-year = "2024"
 license = "MIT"
 name = "pycobrars"
 version = "0.1.0"
@@ -13,4 +12,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = "0.23.2"
-cobrars_core = {path = "../cobrars_core"}
+cobrars_core = { path = "../cobrars_core" }

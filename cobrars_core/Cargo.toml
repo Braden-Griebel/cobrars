@@ -1,6 +1,5 @@
 [package]
 authors = ["Braden Griebel"]
-year = "2024"
 license = "MIT"
 name = "cobrars_core"
 version = "0.1.0"
