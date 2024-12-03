@@ -72,13 +72,12 @@ pub trait Solver {
     ) -> Result<(), SolverError>;
 
     /// Set the objective sense
-    fn set_objective_sense(&mut self, objective_sense: ObjectiveSense)-> Result<(), SolverError>;
+    fn set_objective_sense(&mut self, objective_sense: ObjectiveSense) -> Result<(), SolverError>;
     /// Remove all previous terms from the objective
     fn clear_objective(&mut self) -> Result<(), SolverError>;
     // endregion objective
     // region solver properties
-    
-    
+
     // endregion solver properties
 }
 

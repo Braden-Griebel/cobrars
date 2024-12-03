@@ -1,9 +1,8 @@
-use std::sync::{LazyLock, Mutex};
 use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
 
-pub static CONFIGURATION: LazyLock<Mutex<Configuration>> = LazyLock::new(|| {
-    Mutex::new(Configuration::default())
-});
+pub static CONFIGURATION: LazyLock<Mutex<Configuration>> =
+    LazyLock::new(|| Mutex::new(Configuration::default()));
 
 pub struct Configuration {
     pub lower_bound: f64,
@@ -30,5 +29,5 @@ pub enum Solver {
     /// Use the Clarabel chordal decomposition solver
     Clarabel,
     /// Use the SCIP Mixed Integer Solver
-    Scip
+    Scip,
 }

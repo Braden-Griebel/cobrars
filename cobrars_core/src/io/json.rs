@@ -157,14 +157,14 @@ impl Model {
         };
         Model::from_json(json_model)
     }
-    
+
     pub fn write_json<P: AsRef<Path>>(&self, path: P) -> Result<(), JsonError> {
         let json_model = self.to_json()?;
         let model_string = serde_json::to_string(&json_model)?;
         fs::write(path, model_string)?;
         Ok(())
     }
-    
+
     fn from_json(json_model: JsonModel) -> Result<Self, JsonError> {
         let mut reactions: IndexMap<String, Rc<RefCell<Reaction>>> = IndexMap::new();
         let mut genes: IndexMap<String, Rc<RefCell<Gene>>> = IndexMap::new();
@@ -217,8 +217,16 @@ impl Model {
         })
     }
     fn to_json(&self) -> Result<JsonModel, JsonError> {
-        let json_genes: Vec<JsonGene> = self.genes.iter().map(|(_, g)| (*g).borrow().clone().into()).collect();
-        let json_metabolites: Vec<JsonMetabolite> = self.metabolites.iter().map(|(_, m)| (*m).borrow().clone().into()).collect();
+        let json_genes: Vec<JsonGene> = self
+            .genes
+            .iter()
+            .map(|(_, g)| (*g).borrow().clone().into())
+            .collect();
+        let json_metabolites: Vec<JsonMetabolite> = self
+            .metabolites
+            .iter()
+            .map(|(_, m)| (*m).borrow().clone().into())
+            .collect();
         let json_id = self.id.clone().unwrap_or_default();
         let json_compartments = self.compartments.clone();
         let json_version = self.version.clone().unwrap_or_default();
@@ -230,18 +238,27 @@ impl Model {
                 metabolites: Default::default(),
                 lower_bound: r.borrow().lower_bound,
                 upper_bound: r.borrow().upper_bound,
-                gene_reaction_rule: r.borrow().gpr.clone().map(|rule| rule.to_string_id()).unwrap_or(String::new()),
+                gene_reaction_rule: r
+                    .borrow()
+                    .gpr
+                    .clone()
+                    .map(|rule| rule.to_string_id())
+                    .unwrap_or(String::new()),
                 objective_coefficient: self.objective.get(&r.borrow().id).map(|c| c.clone()),
                 subsystem: r.borrow().subsystem.clone(),
-                notes: r.borrow().notes.clone().map(|n| 
-                    serde_json::from_str(&n).unwrap_or(Value::String(n))
-                ),
-                annotation: r.borrow().annotation.clone().map(|a|
-                    serde_json::from_str(&a).unwrap_or(Value::String(a))
-                ),
+                notes: r
+                    .borrow()
+                    .notes
+                    .clone()
+                    .map(|n| serde_json::from_str(&n).unwrap_or(Value::String(n))),
+                annotation: r
+                    .borrow()
+                    .annotation
+                    .clone()
+                    .map(|a| serde_json::from_str(&a).unwrap_or(Value::String(a))),
             })
         }
-        
+
         Ok(JsonModel {
             metabolites: json_metabolites,
             reactions: json_reactions,
@@ -250,7 +267,6 @@ impl Model {
             compartments: None,
             version: None,
         })
-        
     }
 }
 
@@ -493,9 +509,9 @@ mod json_tests {
 
 #[cfg(test)]
 mod model_tests {
-    use std::collections::HashMap;
     use super::*;
     use crate::metabolic_model::gene::{Gpr, GprOperation};
+    use std::collections::HashMap;
     use std::path::PathBuf;
     #[test]
     fn test_gene_conversion() {
@@ -777,7 +793,7 @@ mod model_tests {
         expected_compartments.insert("e".to_string(), "extracellular space".to_string());
         assert_eq!(model.compartments.clone().unwrap(), expected_compartments);
     }
-    
+
     #[test]
     fn test_to_json() {
         // Read in the JSON model
@@ -786,22 +802,22 @@ mod model_tests {
             .join("test_models")
             .join("e_coli_core.json");
         let model = Model::read_json(data_path).unwrap();
-        
+
         // Convert the model to a json string
         let json_model = model.to_json().unwrap();
-        
+
         // Check on the first metabolite, reaction, and gene
         let met = json_model.metabolites.first().unwrap();
         let reaction = json_model.reactions.first().unwrap();
         let gene = json_model.genes.first().unwrap();
-        
+
         // Metabolite tests
         assert_eq!(met.id, "glc__D_e");
         assert_eq!(met.name.clone().unwrap(), "D-Glucose");
         assert_eq!(met.compartment.clone().unwrap(), "e");
         assert_eq!(met.charge.unwrap(), 0);
         assert_eq!(met.formula.clone().unwrap(), "C6H12O6");
-        
+
         // Reaction tests
         assert_eq!(reaction.id, "PFK");
         assert_eq!(reaction.name.clone().unwrap(), "Phosphofructokinase");
@@ -821,7 +837,7 @@ mod model_tests {
             reaction.subsystem.clone().unwrap(),
             "Glycolysis/Gluconeogenesis"
         );
-        
+
         // Tests for a gene
         assert_eq!(gene.id, "b1241");
         assert_eq!(gene.name.clone().unwrap(), "adhE");

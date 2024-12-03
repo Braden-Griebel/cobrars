@@ -44,12 +44,12 @@ impl Model {
             version: None,
         }
     }
-    
+
     /// Add a reaction to the model
-    /// 
+    ///
     /// # Parameters:
     /// - reaction: Reaction to add
-    /// 
+    ///
     /// # Examples:
     /// ```rust
     /// use cobrars_core::metabolic_model::reaction::Reaction;

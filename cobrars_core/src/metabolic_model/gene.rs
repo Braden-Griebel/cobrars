@@ -483,7 +483,7 @@ mod tests {
         // Note, because of how the display works, it will be very explicit with parenthesis
         // so an extra pair will be wrapped around the entire expression
         assert_eq!(format!("{}", gpr), "((Rv0001 and Rv0002) or Rv0003)");
-        
+
         // Test chained binary operations
         let rv0001 = Rc::new(RefCell::new(
             GeneBuilder::default()
@@ -517,7 +517,7 @@ mod tests {
         // Note, because of how the display works, it will be very explicit with parenthesis
         // so an extra pair will be wrapped around the entire expression
         assert_eq!(format!("{}", gpr), "((Rv0001 and Rv0002) or Rv0003)");
-        
+
         // Test with Not
         let rv0001 = Rc::new(RefCell::new(
             GeneBuilder::default()
@@ -550,6 +550,9 @@ mod tests {
         let gpr = parse_gpr("(Rv0001 and not Rv0002) or not Rv0003", &mut gene_map).unwrap();
         // Note, because of how the display works, it will be very explicit with parenthesis
         // so an extra pair will be wrapped around the entire expression
-        assert_eq!(format!("{}", gpr), "((Rv0001 and (not Rv0002)) or (not Rv0003))");
+        assert_eq!(
+            format!("{}", gpr),
+            "((Rv0001 and (not Rv0002)) or (not Rv0003))"
+        );
     }
 }

@@ -1,8 +1,8 @@
 //! This module provides a struct for representing reactions
-use derive_builder::Builder;
 use super::gene::Gpr;
-use crate::utils::hashing::hash_as_hex_string;
 use crate::configuration::CONFIGURATION;
+use crate::utils::hashing::hash_as_hex_string;
+use derive_builder::Builder;
 use indexmap::IndexMap;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -10,7 +10,7 @@ use std::rc::Rc;
 /// Represents a reaction in the metabolic model
 #[derive(Builder, Debug, Clone)]
 pub struct Reaction {
-    /// Used to identify the reaction 
+    /// Used to identify the reaction
     pub id: String,
     /// Metabolite stoichiometry of the reaction
     #[builder(default = "IndexMap::new()")]
@@ -39,7 +39,6 @@ pub struct Reaction {
 }
 
 impl Reaction {
-    
     /// Determine the id to be associated with the forward reaction in the optimization problem
     ///
     /// # Note:
