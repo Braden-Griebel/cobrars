@@ -1,11 +1,9 @@
 [project]
 name = "pycobrars"
 version = "0.1.0"
-description = "Add your description here"
+description = "Package for constraint based metabolic modeling"
 readme = "README.md"
-authors = [
-    { name = "Braden Griebel", email = "bgriebel@uw.edu" }
-]
+authors = [{ name = "Braden Griebel", email = "bgriebel@uw.edu" }]
 requires-python = ">=3.9"
 dependencies = []
 
