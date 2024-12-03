@@ -1,8 +1,9 @@
 //! Provides struct for representing an optimization problem's object
 
-use crate::optimize::variable::Variable;
 use std::cell::RefCell;
 use std::rc::Rc;
+
+use crate::optimize::variable::Variable;
 
 /// Represents the Objective of an optimization problem
 #[derive(Debug, Clone)]

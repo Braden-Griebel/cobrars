@@ -1,4 +1,13 @@
 //! Module providing JSON IO for cobrars Models
+use std::cell::RefCell;
+use std::fs;
+use std::path::Path;
+use std::rc::Rc;
+
+use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use thiserror::Error;
 
 use crate::io::gpr_parse::{parse_gpr, GprParseError};
 use crate::io::IoError;
@@ -6,16 +15,6 @@ use crate::metabolic_model::gene::{Gene, GeneActivity};
 use crate::metabolic_model::metabolite::Metabolite;
 use crate::metabolic_model::model::Model;
 use crate::metabolic_model::reaction::{Reaction, ReactionBuilder, ReactionBuilderError};
-use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::cell::RefCell;
-use std::fs;
-use std::fs::read_to_string;
-use std::ops::Deref;
-use std::path::Path;
-use std::rc::Rc;
-use thiserror::Error;
 
 // region JSON Model
 /// Represents a JSON serialized model, used for reading and writing models in json format
@@ -32,7 +31,7 @@ struct JsonModel {
 impl JsonModel {
     /// Read a json file into a JsonModel
     pub fn read_to_json_model<P: AsRef<Path>>(path: P) -> Result<JsonModel, IoError> {
-        let json_data = match read_to_string(path) {
+        let json_data = match fs::read_to_string(path) {
             Ok(data) => data,
             _ => return Err(IoError::FileNotFound),
         };
@@ -147,7 +146,7 @@ impl From<Metabolite> for JsonMetabolite {
 
 impl Model {
     pub fn read_json<P: AsRef<Path>>(path: P) -> Result<Model, JsonError> {
-        let model_str = match read_to_string(path) {
+        let model_str = match fs::read_to_string(path) {
             Ok(data) => data,
             Err(err) => return Err(JsonError::UnableToRead(format!("{:?}", err))),
         };
@@ -631,7 +630,7 @@ mod model_tests {
             .join("test_data")
             .join("test_models")
             .join("e_coli_core.json");
-        let ecoli_model = read_to_string(data_path).unwrap();
+        let ecoli_model = fs::read_to_string(data_path).unwrap();
         let model: JsonModel = serde_json::from_str(&ecoli_model).unwrap();
 
         let metabolic_model = Model::from_json(model).unwrap();

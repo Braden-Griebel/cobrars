@@ -27,6 +27,12 @@ pub struct Problem {
     num_constraints: usize,
 }
 
+impl Problem {
+    // pub fn new() -> Self {
+    //     
+    // }
+}
+
 /// Status of an optimization problem
 #[derive(Copy, Clone, Debug)]
 pub enum OptimizationStatus {

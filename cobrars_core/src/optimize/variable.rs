@@ -3,14 +3,31 @@ use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
-#[derive(Debug, Clone)]
+use derive_builder::Builder;
+
+use crate::configuration::CONFIGURATION;
+
+/// Represents a bounded variable in an optimization problem
+#[derive(Builder, Debug, Clone)]
 pub struct Variable {
-    pub(crate) id: String,
-    name: Option<String>,
-    variable_type: VariableType,
-    index: usize,
-    lower_bound: f64,
-    upper_bound: f64,
+    /// ID used to identify the variable
+    #[builder(setter(into))]
+    pub id: String,
+    /// Opational variable name
+    #[builder(setter(into, strip_option), default = "None")]
+    pub name: Option<String>,
+    /// Type of variable, see [`VariableType`] for more information
+    #[builder(default = "VariableType::Continuous")]
+    pub variable_type: VariableType,
+    /// Index of the variable (used internally)
+    #[builder(default = "0")]
+    pub (crate) index: usize,
+    /// Lower bound for the variable, the smallest value it can take
+    #[builder(default = "0.0")]
+    pub lower_bound: f64,
+    /// Upper bound for the variable, the largest value it can take
+    #[builder(default = "CONFIGURATION.lock().unwrap().upper_bound")]
+    pub upper_bound: f64,
 }
 
 impl Variable {
@@ -43,6 +60,12 @@ impl Variable {
             upper_bound,
         }))
     }
+    
+    /// Returns a wrapped reference to the variable which can then be used when constructing 
+    /// constraints
+    pub fn wrap(self) -> Rc<RefCell<Variable>> {
+        Rc::new(RefCell::new(self))
+    }
 
     pub(crate) fn get_id(&self) -> String {
         self.id.clone()
@@ -51,17 +74,14 @@ impl Variable {
 
 impl Display for Variable {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match &self.name {
-            Some(name) => write!(f, "{}:{}", name, self.variable_type),
-            None => write!(f, "{}:{}", self.id, self.variable_type),
-        }
+        write!(f, "{}:{}", self.id, self.variable_type)
     }
 }
 
 /// Represents the type of variable in an optimization problem
 ///
 /// # Notes:
-/// Not all variable types are supported for all solvers, currently Clarabel only supports
+/// Not all variable types are supported for all solvers, currently Clarabel and OSQP only supports
 /// Continuous variables, while Russcip supports all types
 #[derive(Debug, PartialEq, Clone, Hash, Eq)]
 pub enum VariableType {

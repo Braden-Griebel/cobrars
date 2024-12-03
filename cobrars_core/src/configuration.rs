@@ -28,6 +28,8 @@ impl Default for Configuration {
 pub enum Solver {
     /// Use the Clarabel chordal decomposition solver
     Clarabel,
-    /// Use the SCIP Mixed Integer Solver
+    /// Use the SCIP Mixed Integer Solver, requires the scip feature to be enabled
     Scip,
+    /// Use the OSQP Quadratic Program Solver, requires the osqp feature to be enabled
+    Osqp,
 }
