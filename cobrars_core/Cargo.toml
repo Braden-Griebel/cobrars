@@ -19,3 +19,4 @@ serde = { version = "1.0.215", features = ["derive"] }
 thiserror = "2.0.3"
 derive_builder = "0.20.2"
 osqp = { version = "0.6.3", optional = true }
+cfg-if = "1.0.0"

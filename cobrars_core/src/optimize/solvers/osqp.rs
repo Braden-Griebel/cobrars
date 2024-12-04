@@ -1,12 +1,13 @@
-//! Implements a solver interface for Russcip
+//! Solver interface for OSQP solver
 
 use crate::optimize::objective::ObjectiveSense;
 use crate::optimize::solvers::{Solver, SolverError};
 
 #[derive(Clone, Debug)]
-struct ScipSolver {}
+pub struct OsqpSolver {}
 
-impl Solver for ScipSolver {
+
+impl Solver for OsqpSolver {
     fn quadratic_objective_capable(&self) -> bool {
         todo!()
     }

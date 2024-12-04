@@ -15,6 +15,7 @@ use crate::metabolic_model::gene::{Gene, GeneActivity};
 use crate::metabolic_model::metabolite::Metabolite;
 use crate::metabolic_model::model::Model;
 use crate::metabolic_model::reaction::{Reaction, ReactionBuilder, ReactionBuilderError};
+use crate::optimize::solvers::Solver;
 
 // region JSON Model
 /// Represents a JSON serialized model, used for reading and writing models in json format
@@ -81,7 +82,7 @@ impl From<JsonGene> for Gene {
     fn from(g: JsonGene) -> Self {
         /* For now this just converts the notes and annotations into a JSON string,
         which isn't ideal, but the data isn't very structured, so it would require a lot of
-        maintenance to unpack more than this. This needs to be revisted when additional
+        maintenance to unpack more than this. This needs to be revisited when additional
         model file types are supported.
         TODO: Update this to be compatible with other file types
         (Potentially, the other file types versions of this could just be converted into
@@ -243,7 +244,7 @@ impl Model {
                     .clone()
                     .map(|rule| rule.to_string_id())
                     .unwrap_or(String::new()),
-                objective_coefficient: self.objective.get(&r.read().unwrap().id).map(|c| c.clone()),
+                objective_coefficient: self.objective.get(&r.read().unwrap().id).copied(),
                 subsystem: r.read().unwrap().subsystem.clone(),
                 notes: r
                     .read().unwrap()
@@ -512,6 +513,8 @@ mod model_tests {
     use crate::metabolic_model::gene::{Gpr, GprOperation};
     use std::collections::HashMap;
     use std::path::PathBuf;
+    use crate::optimize::solvers::clarabel::ClarabelSolver;
+
     #[test]
     fn test_gene_conversion() {
         let data = r#"
@@ -633,7 +636,7 @@ mod model_tests {
         let ecoli_model = fs::read_to_string(data_path).unwrap();
         let model: JsonModel = serde_json::from_str(&ecoli_model).unwrap();
 
-        let metabolic_model = Model::from_json(model).unwrap();
+        let metabolic_model: Model = Model::from_json(model).unwrap();
         let (_, met) = metabolic_model.metabolites.first().unwrap();
         let (_, reaction) = metabolic_model.reactions.first().unwrap();
         let (_, gene) = metabolic_model.genes.first().unwrap();
@@ -710,7 +713,7 @@ mod model_tests {
             .join("test_data")
             .join("test_models")
             .join("e_coli_core.json");
-        let model = Model::read_json(data_path).unwrap();
+        let model: Model = Model::read_json(data_path).unwrap();
         let (_, met) = model.metabolites.first().unwrap();
         let (_, reaction) = model.reactions.first().unwrap();
         let (_, gene) = model.genes.first().unwrap();
@@ -800,7 +803,7 @@ mod model_tests {
             .join("test_data")
             .join("test_models")
             .join("e_coli_core.json");
-        let model = Model::read_json(data_path).unwrap();
+        let model: Model = Model::read_json(data_path).unwrap();
 
         // Convert the model to a json string
         let json_model = model.to_json().unwrap();

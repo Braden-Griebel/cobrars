@@ -12,7 +12,7 @@ pub struct Variable {
     /// ID used to identify the variable
     #[builder(setter(into))]
     pub id: String,
-    /// Opational variable name
+    /// Optional variable name
     #[builder(setter(into, strip_option), default = "None")]
     pub name: Option<String>,
     /// Type of variable, see [`VariableType`] for more information

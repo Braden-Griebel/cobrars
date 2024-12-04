@@ -9,6 +9,8 @@ use crate::optimize::variable::{Variable, VariableBuilder};
 pub enum Constraint {
     /// Represents an equality constraint, where `terms` = `equals`
     Equality {
+        /// ID of the constraint
+        id: String,
         /// Linear terms which are added together, see [`ConstraintTerm`] for more 
         terms: Vec<ConstraintTerm>,
         /// The right hand side of the equality constraint
@@ -16,6 +18,8 @@ pub enum Constraint {
     },
     /// Represents an inequality constraint,
     Inequality {
+        /// ID of the constraint
+        id: String,
         /// Linear terms which are added together, see [`ConstraintTerm`] for more 
         terms: Vec<ConstraintTerm>,
         /// The lowest value the sum of the terms can take
@@ -53,16 +57,18 @@ impl Constraint {
     ///     .upper_bound(7.0)
     ///     .build()
     ///     .unwrap()
-    ///     .wrap(); // This wraps the variable in a Arc<RwLock<>>
+    ///     .wrap(); // This wraps the variable in an Arc<RwLock<>>
     /// // Create a constraint representing 3*x + 2*y = 6
-    /// let new_constraint = Constraint::new_equality(&[x,y], &[3.0,2.0], 6.);
+    /// let new_constraint = Constraint::new_equality("Example Equality Constraint", &[x,y], &[3.0,2.0], 6.);
     /// ```
     pub fn new_equality(
+        id: &str,
         variables: &[Arc<RwLock<Variable>>],
         coefficients: &[f64],
         equals: f64,
     ) -> Self {
         Constraint::Equality {
+            id: id.to_string(),
             terms: Constraint::zip_into_terms(variables, coefficients),
             equals,
         }
@@ -98,15 +104,17 @@ impl Constraint {
     ///     .unwrap()
     ///     .wrap(); // This wraps the variable in a Arc<RwLock<>>
     /// // represents the inequality 2 <= 3*x + 2*y <= 6
-    /// let new_constraint = Constraint::new_inequality(&[x,y], &[3.0,2.0], 2., 6.);
+    /// let new_constraint = Constraint::new_inequality("Example Inequality Account", &[x,y], &[3.0,2.0], 2., 6.);
     /// ```
     pub fn new_inequality(
+        id: &str,
         variables: &[Arc<RwLock<Variable>>],
         coefficients: &[f64],
         lower_bound: f64,
         upper_bound: f64,
     ) -> Self {
         Constraint::Inequality {
+            id: id.to_string(),
             terms: Constraint::zip_into_terms(variables, coefficients),
             lower_bound, 
             upper_bound,
@@ -137,16 +145,18 @@ impl Constraint {
     /// Create a string representation of the terms in the Constraint
     fn constraint_to_string(&self) -> String {
         match self {
-            Constraint::Equality { terms, equals } => {
-                format!("{} = {}", Self::terms_to_string(terms), equals)
+            Constraint::Equality {id, terms, equals } => {
+                format!("{}: {} = {}", id, Self::terms_to_string(terms), equals)
             }
             Constraint::Inequality {
+                id,
                 terms,
                 lower_bound,
                 upper_bound,
             } => {
                 format!(
-                    "{} <= {} <= {}",
+                    "{}: {} <= {} <= {}",
+                    id,
                     lower_bound,
                     Self::terms_to_string(terms),
                     upper_bound
@@ -163,6 +173,14 @@ impl Constraint {
         }
         str_rep.push_str(format!("{}", terms.last().unwrap()).as_str());
         str_rep
+    }
+    
+    /// Get the id of the constraint
+    pub fn get_id(&self)->String {
+        match self {
+            Constraint::Equality { id, .. } => id.to_string(),
+            Constraint::Inequality { id, .. } => id.to_string(),
+        }
     }
 }
 

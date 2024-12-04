@@ -83,6 +83,16 @@ impl Objective {
             coefficients,
         ));
     }
+    
+    /// Checks if the objective term contains quadratic terms
+    pub fn contains_quadratic(&self) -> bool {
+        for t in &self.terms {
+            if let ObjectiveTerm::Quadratic { .. } = t {
+                return true;
+            }
+        }
+        false
+    }
 
     /// Zip together slice of variable references with coefficients to create linear terms
     fn zip_linear_terms(

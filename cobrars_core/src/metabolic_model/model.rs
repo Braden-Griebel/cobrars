@@ -6,6 +6,7 @@ use crate::optimize::problem::Problem;
 
 use indexmap::IndexMap;
 use std::sync::{Arc, RwLock};
+use crate::optimize::solvers::Solver;
 
 /// Represents a Genome Scale Metabolic Model
 #[derive(Clone, Debug)]
