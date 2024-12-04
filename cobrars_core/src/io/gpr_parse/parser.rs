@@ -3,12 +3,12 @@ use crate::metabolic_model::gene::{
     Gene, GeneActivity, Gpr, GprError, GprOperation, GprOperatorType,
 };
 
+use std::io::BufRead;
+use std::sync::{Arc, RwLock};
+
+use thiserror::Error;
 use indexmap::IndexMap;
 use serde::Deserialize;
-use std::cell::RefCell;
-use std::io::BufRead;
-use std::rc::Rc;
-use thiserror::Error;
 /*
 GPR Grammar:
 expression -> binary
@@ -26,14 +26,14 @@ pub struct GPRParser<'gm> {
     /// Current token being processed
     current: usize,
     /// Map containing the Genes
-    pub(crate) gene_map: &'gm mut IndexMap<String, Rc<RefCell<Gene>>>,
+    pub(crate) gene_map: &'gm mut IndexMap<String, Arc<RwLock<Gene>>>,
 }
 
 impl<'gm> GPRParser<'gm> {
     /// Create a new GPRParser
     pub fn new(
         tokens: Vec<Token>,
-        gene_map: &mut IndexMap<String, Rc<RefCell<Gene>>>,
+        gene_map: &mut IndexMap<String, Arc<RwLock<Gene>>>,
     ) -> GPRParser {
         GPRParser {
             tokens,
@@ -186,10 +186,10 @@ impl<'gm> GPRParser<'gm> {
 
     /// Get a reference to a gene in [`gene_map`] if it exists, or insert a new gene with the
     /// provided id
-    fn get_or_insert_gene(&mut self, gene_id: String) -> Rc<RefCell<Gene>> {
+    fn get_or_insert_gene(&mut self, gene_id: String) -> Arc<RwLock<Gene>> {
         self.gene_map
             .entry(gene_id.clone())
-            .or_insert(Rc::new(RefCell::new(Gene::new(
+            .or_insert(Arc::new(RwLock::new(Gene::new(
                 gene_id,
                 None,
                 GeneActivity::Active,
@@ -226,6 +226,7 @@ pub enum ParseError {
 mod tests {
     use super::*;
     use crate::io::gpr_parse::lexer::Lexer;
+    use crate::io::gpr_parse::ParseError;
 
     #[test]
     fn test_single_gene_parse() {
@@ -239,7 +240,7 @@ mod tests {
                 panic!("Incorrect Parse Result (Should have been single gene)")
             }
             Gpr::Gene(gene) => {
-                if (*gene).borrow().id != "Rv1304".to_string() {
+                if gene.read().unwrap().id != "Rv1304".to_string() {
                     panic!("Wrong Gene");
                 }
             }
@@ -261,7 +262,7 @@ mod tests {
                             panic!("Should have been a gene")
                         }
                         Gpr::Gene(gene_ref) => {
-                            if gene_ref.borrow().id != "Rv1304".to_string() {
+                            if gene_ref.read().unwrap().id != "Rv1304".to_string() {
                                 panic!("Incorrect Left Gene");
                             }
                         }
@@ -271,7 +272,7 @@ mod tests {
                             panic!("Should have been a gene")
                         }
                         Gpr::Gene(gene_ref) => {
-                            if gene_ref.borrow().id != "Rv0023".to_string() {
+                            if gene_ref.read().unwrap().id != "Rv0023".to_string() {
                                 panic!("Incorrect Right Gene");
                             }
                         }
@@ -305,7 +306,7 @@ mod tests {
                             panic!("Should have been a gene")
                         }
                         Gpr::Gene(gene_ref) => {
-                            if gene_ref.borrow().id != "Rv1304".to_string() {
+                            if gene_ref.read().unwrap().id != "Rv1304".to_string() {
                                 panic!("Incorrect Left Gene");
                             }
                         }
@@ -315,7 +316,7 @@ mod tests {
                             panic!("Should have been a gene")
                         }
                         Gpr::Gene(gene_ref) => {
-                            if gene_ref.borrow().id != "Rv0023".to_string() {
+                            if gene_ref.read().unwrap().id != "Rv0023".to_string() {
                                 panic!("Incorrect Right Gene");
                             }
                         }
@@ -348,7 +349,7 @@ mod tests {
                         panic!("Should have been a gene")
                     }
                     Gpr::Gene(gene_ref) => {
-                        if gene_ref.borrow().id != "Rv0023".to_string() {
+                        if gene_ref.read().unwrap().id != "Rv0023".to_string() {
                             panic!("Incorrect Left Gene");
                         }
                     }
@@ -381,7 +382,7 @@ mod tests {
                                         panic!("Should have been a gene")
                                     }
                                     Gpr::Gene(gene_ref) => {
-                                        if gene_ref.borrow().id != "Rv3141".to_string() {
+                                        if gene_ref.read().unwrap().id != "Rv3141".to_string() {
                                             panic!("Incorrect Left Gene");
                                         }
                                     }
@@ -391,7 +392,7 @@ mod tests {
                                         panic!("Should have been a gene")
                                     }
                                     Gpr::Gene(gene_ref) => {
-                                        if gene_ref.borrow().id != "Rv0023".to_string() {
+                                        if gene_ref.read().unwrap().id != "Rv0023".to_string() {
                                             panic!("Incorrect Right Gene");
                                         }
                                     }
@@ -409,7 +410,7 @@ mod tests {
                         Gpr::Operation(_) => {
                             panic!("Should Have Been a Gene Parsed")
                         }
-                        Gpr::Gene(gene_ref) => if gene_ref.borrow().id != "Rv0018".to_string() {},
+                        Gpr::Gene(gene_ref) => if gene_ref.read().unwrap().id != "Rv0018".to_string() {},
                     }
                 }
                 _ => {
@@ -434,7 +435,7 @@ mod tests {
                 GprOperation::And { left, right } => {
                     match *right {
                         Gpr::Gene(gene_ref) => {
-                            if gene_ref.borrow().id != "Rv0003".to_string() {
+                            if gene_ref.read().unwrap().id != "Rv0003".to_string() {
                                 panic!("Incorrect Left Gene");
                             }
                         }
@@ -445,7 +446,7 @@ mod tests {
                             GprOperation::And { left, right } => {
                                 match *left {
                                     Gpr::Gene(gene_ref) => {
-                                        if gene_ref.borrow().id != "Rv0001".to_string() {
+                                        if gene_ref.read().unwrap().id != "Rv0001".to_string() {
                                             panic!("Incorrect Left Gene");
                                         }
                                     }
@@ -453,7 +454,7 @@ mod tests {
                                 }
                                 match *right {
                                     Gpr::Gene(gene_ref) => {
-                                        if gene_ref.borrow().id != "Rv0002".to_string() {
+                                        if gene_ref.read().unwrap().id != "Rv0002".to_string() {
                                             panic!("Incorrect Right Gene");
                                         }
                                     }
@@ -477,6 +478,10 @@ mod tests {
         let token_vec: Vec<Token> = lexer.lex().unwrap();
         let mut gene_map = IndexMap::new();
         let mut parser = GPRParser::new(token_vec, &mut gene_map);
-        assert_eq!(parser.parse(), Err(ParseError::EarlyTermination));
+        match parser.parse() {
+            Ok(_)=>{panic!("Should not have parsed")},
+            Err(ParseError::EarlyTermination) => {},
+            Err(_)=>{panic!("Incorrect error returned")}
+        };
     }
 }

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
-use std::sync::{LazyLock, Mutex};
+use std::sync::{LazyLock, RwLock};
 
-pub static CONFIGURATION: LazyLock<Mutex<Configuration>> =
-    LazyLock::new(|| Mutex::new(Configuration::default()));
+pub static CONFIGURATION: LazyLock<RwLock<Configuration>> =
+    LazyLock::new(|| RwLock::new(Configuration::default()));
 
 pub struct Configuration {
     pub lower_bound: f64,

@@ -1,7 +1,6 @@
 //! Provides struct for representing a constraint in an optimization problem
-use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
-use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
 use crate::optimize::variable::{Variable, VariableBuilder};
 
@@ -47,19 +46,19 @@ impl Constraint {
     ///     .upper_bound(20.)
     ///     .build()
     ///     .unwrap()
-    ///     .wrap(); // This wraps the variable in a Rc<RefCell<>>
+    ///     .wrap(); // This wraps the variable in a Arc<RwLock<>>
     /// let y = VariableBuilder::default()
     ///     .id("y")
     ///     .lower_bound(3.0)
     ///     .upper_bound(7.0)
     ///     .build()
     ///     .unwrap()
-    ///     .wrap(); // This wraps the variable in a Rc<RefCell<>>
+    ///     .wrap(); // This wraps the variable in a Arc<RwLock<>>
     /// // Create a constraint representing 3*x + 2*y = 6
     /// let new_constraint = Constraint::new_equality(&[x,y], &[3.0,2.0], 6.);
     /// ```
     pub fn new_equality(
-        variables: &[Rc<RefCell<Variable>>],
+        variables: &[Arc<RwLock<Variable>>],
         coefficients: &[f64],
         equals: f64,
     ) -> Self {
@@ -90,19 +89,19 @@ impl Constraint {
     ///     .upper_bound(20.)
     ///     .build()
     ///     .unwrap()
-    ///     .wrap(); // This wraps the variable in a Rc<RefCell<>>
+    ///     .wrap(); // This wraps the variable in a Arc<RwLock<>>
     /// let y = VariableBuilder::default()
     ///     .id("y")
     ///     .lower_bound(3.0)
     ///     .upper_bound(7.0)
     ///     .build()
     ///     .unwrap()
-    ///     .wrap(); // This wraps the variable in a Rc<RefCell<>>
+    ///     .wrap(); // This wraps the variable in a Arc<RwLock<>>
     /// // represents the inequality 2 <= 3*x + 2*y <= 6
     /// let new_constraint = Constraint::new_inequality(&[x,y], &[3.0,2.0], 2., 6.);
     /// ```
     pub fn new_inequality(
-        variables: &[Rc<RefCell<Variable>>],
+        variables: &[Arc<RwLock<Variable>>],
         coefficients: &[f64],
         lower_bound: f64,
         upper_bound: f64,
@@ -114,15 +113,15 @@ impl Constraint {
         }
     }
     
-    /// Wrap the constraint in a Rc<RefCell<>>
-    pub fn wrap(self)-> Rc<RefCell<Self>>{
-        Rc::new(RefCell::new(self))
+    /// Wrap the constraint in an Arc<RwLock<>>
+    pub fn wrap(self)-> Arc<RwLock<Self>>{
+        Arc::new(RwLock::new(self))
     }
 
     /// Take a slice of variable references, and a slice of coefficients and zip
     /// them together into a vec of ConstraintTerms
     fn zip_into_terms(
-        variables: &[Rc<RefCell<Variable>>],
+        variables: &[Arc<RwLock<Variable>>],
         coefficients: &[f64],
     ) -> Vec<ConstraintTerm> {
         variables
@@ -178,13 +177,13 @@ impl Display for Constraint {
 #[derive(Debug, Clone)]
 pub struct ConstraintTerm {
     /// A reference to a [`Variable`]
-    variable: Rc<RefCell<Variable>>,
+    variable: Arc<RwLock<Variable>>,
     /// The coefficient for the variable
     coefficient: f64,
 }
 
 impl Display for ConstraintTerm {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}*{}", self.coefficient, self.variable.borrow().id)
+        write!(f, "{}*{}", self.coefficient, self.variable.read().unwrap().id)
     }
 }

@@ -1,7 +1,6 @@
 //! Module providing representation of optimization problem variables
-use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
-use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
 use derive_builder::Builder;
 
@@ -26,7 +25,7 @@ pub struct Variable {
     #[builder(default = "0.0")]
     pub lower_bound: f64,
     /// Upper bound for the variable, the largest value it can take
-    #[builder(default = "CONFIGURATION.lock().unwrap().upper_bound")]
+    #[builder(default = "CONFIGURATION.read().unwrap().upper_bound")]
     pub upper_bound: f64,
 }
 
@@ -42,7 +41,7 @@ impl Variable {
     /// - `upper_bound`: Upper bound of the variable
     ///
     /// # Returns
-    /// A new variable, wrapped in Rc<RefCell<>>
+    /// A new variable, wrapped in Arc<RwLock<>>
     fn new(
         id: String,
         name: Option<String>,
@@ -50,8 +49,8 @@ impl Variable {
         index: usize,
         lower_bound: f64,
         upper_bound: f64,
-    ) -> Rc<RefCell<Variable>> {
-        Rc::new(RefCell::new(Variable {
+    ) -> Arc<RwLock<Variable>> {
+        Arc::new(RwLock::new(Variable {
             id,
             name,
             variable_type,
@@ -63,8 +62,8 @@ impl Variable {
     
     /// Returns a wrapped reference to the variable which can then be used when constructing 
     /// constraints
-    pub fn wrap(self) -> Rc<RefCell<Variable>> {
-        Rc::new(RefCell::new(self))
+    pub fn wrap(self) -> Arc<RwLock<Variable>> {
+        Arc::new(RwLock::new(self))
     }
 
     pub(crate) fn get_id(&self) -> String {

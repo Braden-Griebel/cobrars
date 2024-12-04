@@ -4,9 +4,7 @@ use crate::configuration::CONFIGURATION;
 use crate::utils::hashing::hash_as_hex_string;
 use derive_builder::Builder;
 use indexmap::IndexMap;
-use std::cell::RefCell;
-use std::rc::Rc;
-
+use std::sync::{Arc, RwLock};
 /// Represents a reaction in the metabolic model
 #[derive(Builder, Debug, Clone)]
 pub struct Reaction {
@@ -22,10 +20,10 @@ pub struct Reaction {
     #[builder(default = "None")]
     pub gpr: Option<Gpr>,
     /// Lower flux bound
-    #[builder(default = "CONFIGURATION.lock().unwrap().lower_bound")]
+    #[builder(default = "CONFIGURATION.read().unwrap().lower_bound")]
     pub lower_bound: f64,
     /// Upper flux bound
-    #[builder(default = "CONFIGURATION.lock().unwrap().upper_bound")]
+    #[builder(default = "CONFIGURATION.read().unwrap().upper_bound")]
     pub upper_bound: f64,
     /// Reaction subsystem
     #[builder(default = "None")]
@@ -53,5 +51,10 @@ impl Reaction {
     /// The reverse id is "{reaction_id}_reverse_{hexidecimal hash of reaction_id}"
     pub fn get_reverse_id(&self) -> String {
         format!("{}_reverse_{}", &self.id, hash_as_hex_string(&self.id))
+    }
+    
+    /// Wrap the reaction in an Arc<RwLock<>>
+    pub fn wrap(self)-> Arc<RwLock<Reaction>> {
+        Arc::new(RwLock::new(self))
     }
 }

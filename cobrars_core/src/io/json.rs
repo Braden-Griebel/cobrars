@@ -2,7 +2,7 @@
 use std::cell::RefCell;
 use std::fs;
 use std::path::Path;
-use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -165,16 +165,16 @@ impl Model {
     }
 
     fn from_json(json_model: JsonModel) -> Result<Self, JsonError> {
-        let mut reactions: IndexMap<String, Rc<RefCell<Reaction>>> = IndexMap::new();
-        let mut genes: IndexMap<String, Rc<RefCell<Gene>>> = IndexMap::new();
-        let mut metabolites: IndexMap<String, Rc<RefCell<Metabolite>>> = IndexMap::new();
+        let mut reactions: IndexMap<String, Arc<RwLock<Reaction>>> = IndexMap::new();
+        let mut genes: IndexMap<String, Arc<RwLock<Gene>>> = IndexMap::new();
+        let mut metabolites: IndexMap<String, Arc<RwLock<Metabolite>>> = IndexMap::new();
         let mut objective: IndexMap<String, f64> = IndexMap::new();
         // Start by converting the genes and metabolites using the From methods
         json_model.genes.into_iter().for_each(|g| {
-            genes.insert(g.id.clone(), Rc::new(RefCell::new(Gene::from(g))));
+            genes.insert(g.id.clone(), Arc::new(RwLock::new(Gene::from(g))));
         });
         json_model.metabolites.into_iter().for_each(|m| {
-            metabolites.insert(m.id.clone(), Rc::new(RefCell::new(Metabolite::from(m))));
+            metabolites.insert(m.id.clone(), Arc::new(RwLock::new(Metabolite::from(m))));
         });
         /* Now, iterate through the reactions, parsing GPRs, and adding to
         the objective along the way
@@ -185,7 +185,7 @@ impl Model {
             } else {
                 None
             };
-            let new_reaction = Rc::new(RefCell::new(
+            let new_reaction = Arc::new(RwLock::new(
                 ReactionBuilder::default()
                     .id(rxn.id.clone())
                     .metabolites(rxn.metabolites)
@@ -219,12 +219,12 @@ impl Model {
         let json_genes: Vec<JsonGene> = self
             .genes
             .iter()
-            .map(|(_, g)| (*g).borrow().clone().into())
+            .map(|(_, g)| g.read().unwrap().clone().into())
             .collect();
         let json_metabolites: Vec<JsonMetabolite> = self
             .metabolites
             .iter()
-            .map(|(_, m)| (*m).borrow().clone().into())
+            .map(|(_, m)| m.read().unwrap().clone().into())
             .collect();
         let json_id = self.id.clone().unwrap_or_default();
         let json_compartments = self.compartments.clone();
@@ -232,26 +232,26 @@ impl Model {
         let mut json_reactions: Vec<JsonReaction> = Vec::new();
         for (_, r) in &self.reactions {
             json_reactions.push(JsonReaction {
-                id: r.borrow().id.clone(),
-                name: r.borrow().name.clone(),
+                id: r.read().unwrap().id.clone(),
+                name: r.read().unwrap().name.clone(),
                 metabolites: Default::default(),
-                lower_bound: r.borrow().lower_bound,
-                upper_bound: r.borrow().upper_bound,
+                lower_bound: r.read().unwrap().lower_bound,
+                upper_bound: r.read().unwrap().upper_bound,
                 gene_reaction_rule: r
-                    .borrow()
+                    .read().unwrap()
                     .gpr
                     .clone()
                     .map(|rule| rule.to_string_id())
                     .unwrap_or(String::new()),
-                objective_coefficient: self.objective.get(&r.borrow().id).map(|c| c.clone()),
-                subsystem: r.borrow().subsystem.clone(),
+                objective_coefficient: self.objective.get(&r.read().unwrap().id).map(|c| c.clone()),
+                subsystem: r.read().unwrap().subsystem.clone(),
                 notes: r
-                    .borrow()
+                    .read().unwrap()
                     .notes
                     .clone()
                     .map(|n| serde_json::from_str(&n).unwrap_or(Value::String(n))),
                 annotation: r
-                    .borrow()
+                    .read().unwrap()
                     .annotation
                     .clone()
                     .map(|a| serde_json::from_str(&a).unwrap_or(Value::String(a))),
@@ -639,16 +639,16 @@ mod model_tests {
         let (_, gene) = metabolic_model.genes.first().unwrap();
 
         // Tests for the metabolite
-        assert_eq!(met.borrow().id, "glc__D_e");
-        assert_eq!(met.borrow().name.clone().unwrap(), "D-Glucose");
-        assert_eq!(met.borrow().compartment.clone().unwrap(), "e");
-        assert_eq!(met.borrow().charge, 0);
-        assert_eq!(met.borrow().formula.clone().unwrap(), "C6H12O6");
+        assert_eq!(met.read().unwrap().id, "glc__D_e");
+        assert_eq!(met.read().unwrap().name.clone().unwrap(), "D-Glucose");
+        assert_eq!(met.read().unwrap().compartment.clone().unwrap(), "e");
+        assert_eq!(met.read().unwrap().charge, 0);
+        assert_eq!(met.read().unwrap().formula.clone().unwrap(), "C6H12O6");
 
         // Tests for the reaction
-        assert_eq!(reaction.borrow().id, "PFK");
+        assert_eq!(reaction.read().unwrap().id, "PFK");
         assert_eq!(
-            reaction.borrow().name.clone().unwrap(),
+            reaction.read().unwrap().name.clone().unwrap(),
             "Phosphofructokinase"
         );
         let mut expected_reactions: IndexMap<String, f64> = IndexMap::new();
@@ -657,24 +657,24 @@ mod model_tests {
         expected_reactions.insert("f6p_c".to_string(), -1.0);
         expected_reactions.insert("fdp_c".to_string(), 1.0);
         expected_reactions.insert("h_c".to_string(), 1.0);
-        for (k, v) in &reaction.borrow().metabolites {
+        for (k, v) in &reaction.read().unwrap().metabolites {
             assert!((v - expected_reactions.get(k).unwrap()).abs() < 1e-25);
         }
-        assert!((reaction.borrow().lower_bound - 0.0).abs() < 1e-25);
-        assert!((reaction.borrow().upper_bound - 1000.0).abs() < 1e-25);
+        assert!((reaction.read().unwrap().lower_bound - 0.0).abs() < 1e-25);
+        assert!((reaction.read().unwrap().upper_bound - 1000.0).abs() < 1e-25);
         assert_eq!(
-            reaction.borrow().subsystem.clone().unwrap(),
+            reaction.read().unwrap().subsystem.clone().unwrap(),
             "Glycolysis/Gluconeogenesis"
         );
 
-        match reaction.borrow().gpr {
+        match reaction.read().unwrap().gpr {
             None => {}
             Some(ref rule) => match rule {
                 Gpr::Operation(op) => match op {
                     GprOperation::Or { left, right } => {
                         match (**left).clone() {
                             Gpr::Gene(g) => {
-                                if g.borrow().id != "b3916" {
+                                if g.read().unwrap().id != "b3916" {
                                     panic!("Incorrect Parse")
                                 }
                             }
@@ -682,7 +682,7 @@ mod model_tests {
                         };
                         match (**right).clone() {
                             Gpr::Gene(g) => {
-                                if g.borrow().id != "b1723" {
+                                if g.read().unwrap().id != "b1723" {
                                     panic!("Incorrect Parse")
                                 }
                             }
@@ -700,8 +700,8 @@ mod model_tests {
         }
 
         // Tests for a gene
-        assert_eq!(gene.borrow().id, "b1241");
-        assert_eq!(gene.borrow().name.clone().unwrap(), "adhE");
+        assert_eq!(gene.read().unwrap().id, "b1241");
+        assert_eq!(gene.read().unwrap().name.clone().unwrap(), "adhE");
     }
 
     #[test]
@@ -716,16 +716,16 @@ mod model_tests {
         let (_, gene) = model.genes.first().unwrap();
 
         // Tests for the metabolite
-        assert_eq!(met.borrow().id, "glc__D_e");
-        assert_eq!(met.borrow().name.clone().unwrap(), "D-Glucose");
-        assert_eq!(met.borrow().compartment.clone().unwrap(), "e");
-        assert_eq!(met.borrow().charge, 0);
-        assert_eq!(met.borrow().formula.clone().unwrap(), "C6H12O6");
+        assert_eq!(met.read().unwrap().id, "glc__D_e");
+        assert_eq!(met.read().unwrap().name.clone().unwrap(), "D-Glucose");
+        assert_eq!(met.read().unwrap().compartment.clone().unwrap(), "e");
+        assert_eq!(met.read().unwrap().charge, 0);
+        assert_eq!(met.read().unwrap().formula.clone().unwrap(), "C6H12O6");
 
         // Tests for the reaction
-        assert_eq!(reaction.borrow().id, "PFK");
+        assert_eq!(reaction.read().unwrap().id, "PFK");
         assert_eq!(
-            reaction.borrow().name.clone().unwrap(),
+            reaction.read().unwrap().name.clone().unwrap(),
             "Phosphofructokinase"
         );
         let mut expected_reactions: IndexMap<String, f64> = IndexMap::new();
@@ -734,24 +734,24 @@ mod model_tests {
         expected_reactions.insert("f6p_c".to_string(), -1.0);
         expected_reactions.insert("fdp_c".to_string(), 1.0);
         expected_reactions.insert("h_c".to_string(), 1.0);
-        for (k, v) in &reaction.borrow().metabolites {
+        for (k, v) in &reaction.read().unwrap().metabolites {
             assert!((v - expected_reactions.get(k).unwrap()).abs() < 1e-25);
         }
-        assert!((reaction.borrow().lower_bound - 0.0).abs() < 1e-25);
-        assert!((reaction.borrow().upper_bound - 1000.0).abs() < 1e-25);
+        assert!((reaction.read().unwrap().lower_bound - 0.0).abs() < 1e-25);
+        assert!((reaction.read().unwrap().upper_bound - 1000.0).abs() < 1e-25);
         assert_eq!(
-            reaction.borrow().subsystem.clone().unwrap(),
+            reaction.read().unwrap().subsystem.clone().unwrap(),
             "Glycolysis/Gluconeogenesis"
         );
 
-        match reaction.borrow().gpr {
+        match reaction.read().unwrap().gpr {
             None => {}
             Some(ref rule) => match rule {
                 Gpr::Operation(op) => match op {
                     GprOperation::Or { left, right } => {
                         match (**left).clone() {
                             Gpr::Gene(g) => {
-                                if g.borrow().id != "b3916" {
+                                if g.read().unwrap().id != "b3916" {
                                     panic!("Incorrect Parse")
                                 }
                             }
@@ -759,7 +759,7 @@ mod model_tests {
                         };
                         match (**right).clone() {
                             Gpr::Gene(g) => {
-                                if g.borrow().id != "b1723" {
+                                if g.read().unwrap().id != "b1723" {
                                     panic!("Incorrect Parse")
                                 }
                             }
@@ -777,8 +777,8 @@ mod model_tests {
         }
 
         // Tests for a gene
-        assert_eq!(gene.borrow().id, "b1241");
-        assert_eq!(gene.borrow().name.clone().unwrap(), "adhE");
+        assert_eq!(gene.read().unwrap().id, "b1241");
+        assert_eq!(gene.read().unwrap().name.clone().unwrap(), "adhE");
 
         // Tests for id
         assert_eq!(model.id.clone().unwrap(), "e_coli_core");

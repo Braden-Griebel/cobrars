@@ -1,5 +1,5 @@
 pub mod constraint;
-mod objective;
-pub(crate) mod problem;
-mod solvers;
+pub mod objective;
+pub mod problem;
+pub mod solvers;
 pub mod variable;

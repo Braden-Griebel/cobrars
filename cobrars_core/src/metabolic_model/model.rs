@@ -5,18 +5,17 @@ use crate::metabolic_model::reaction::Reaction;
 use crate::optimize::problem::Problem;
 
 use indexmap::IndexMap;
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
 /// Represents a Genome Scale Metabolic Model
 #[derive(Clone, Debug)]
 pub struct Model {
-    /// Map of reaction ids to Reaction Objects (which are wrapped in Rc<RefCell<>>)
-    pub reactions: IndexMap<String, Rc<RefCell<Reaction>>>,
-    /// Map of gene ids to Gene Objects (which are wrapped in Rc<RefCell<>>)
-    pub genes: IndexMap<String, Rc<RefCell<Gene>>>,
-    /// Map of metabolite ids to Metabolite Objects (which are wrapped in Rc<RefCell<>>)
-    pub metabolites: IndexMap<String, Rc<RefCell<Metabolite>>>,
+    /// Map of reaction ids to Reaction Objects (which are wrapped in Arc<RwLock<>>)
+    pub reactions: IndexMap<String, Arc<RwLock<Reaction>>>,
+    /// Map of gene ids to Gene Objects (which are wrapped in Arc<RwLock<>>)
+    pub genes: IndexMap<String, Arc<RwLock<Gene>>>,
+    /// Map of metabolite ids to Metabolite Objects (which are wrapped in Arc<RwLock<>>)
+    pub metabolites: IndexMap<String, Arc<RwLock<Metabolite>>>,
     /// Map of reaction ids to objective function coefficients
     pub objective: IndexMap<String, f64>,
     /// Underlying optimization problem
@@ -56,6 +55,6 @@ impl Model {
     /// ```
     pub fn add_reaction(&mut self, reaction: Reaction) {
         let id = reaction.id.clone();
-        self.reactions.insert(id, Rc::new(RefCell::new(reaction)));
+        self.reactions.insert(id, Arc::new(RwLock::new(reaction)));
     }
 }

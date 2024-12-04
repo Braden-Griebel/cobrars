@@ -1,10 +1,9 @@
 //! This module provides the Gene struct, representing a gene, and the GPR struct, representing a
 //! gene protein reaction rule
 use std::borrow::Borrow;
-use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
-use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
 use derive_builder::Builder;
 
@@ -69,12 +68,12 @@ pub enum GeneActivity {
 }
 
 /// Representation of a Gene Protein Reaction Rule as an AST
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum Gpr {
     /// Operation on two genes (see [`GprOperation`])
     Operation(GprOperation),
     /// A terminal gene Node (see [`Gene`])
-    Gene(Rc<RefCell<Gene>>),
+    Gene(Arc<RwLock<Gene>>),
 }
 
 impl Gpr {
@@ -110,7 +109,7 @@ impl Gpr {
     }
 
     /// Create a new gene node
-    pub fn new_gene_node(gene: Rc<RefCell<Gene>>) -> Gpr {
+    pub fn new_gene_node(gene: Arc<RwLock<Gene>>) -> Gpr {
         Gpr::Gene(gene)
     }
 
@@ -144,7 +143,7 @@ impl Gpr {
                     }
                 }
             },
-            Gpr::Gene(g) => (**g).borrow().activity.clone(),
+            Gpr::Gene(g) => g.read().unwrap().activity.clone(),
         }
     }
 
@@ -162,7 +161,7 @@ impl Gpr {
                     format!("(not {})", val)
                 }
             },
-            Gpr::Gene(gene_ref) => (**gene_ref).borrow().id.clone(),
+            Gpr::Gene(gene_ref) => gene_ref.read().unwrap().id.clone(),
         }
     }
 }
@@ -174,7 +173,7 @@ impl Display for Gpr {
 }
 
 /// Possible operations on genes
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum GprOperation {
     Or { left: Box<Gpr>, right: Box<Gpr> },
     And { left: Box<Gpr>, right: Box<Gpr> },
@@ -196,8 +195,7 @@ pub enum GprError {
 mod tests {
     use crate::metabolic_model::gene::{Gene, GeneActivity, GeneBuilder, Gpr, GprOperation};
     use indexmap::IndexMap;
-    use std::cell::RefCell;
-    use std::rc::Rc;
+    use std::sync::{Arc, RwLock};
 
     #[test]
     fn test_gene_node() {
@@ -208,7 +206,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let active_gene_node = Gpr::Gene(Rc::new(RefCell::new(active_gene)));
+        let active_gene_node = Gpr::Gene(Arc::new(RwLock::new(active_gene)));
         let inactive_gene = Gene {
             id: "Inactive".to_string(),
             name: None,
@@ -216,7 +214,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let inactive_gene_node = Gpr::Gene(Rc::new(RefCell::new(inactive_gene)));
+        let inactive_gene_node = Gpr::Gene(Arc::new(RwLock::new(inactive_gene)));
         assert_eq!(active_gene_node.eval(), GeneActivity::Active);
         assert_eq!(inactive_gene_node.eval(), GeneActivity::Inactive);
     }
@@ -231,7 +229,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let active_gene1_ref = Rc::new(RefCell::new(active_gene1));
+        let active_gene1_ref = Arc::new(RwLock::new(active_gene1));
         let active_gene1_node = Gpr::Gene(active_gene1_ref.clone());
         let inactive_gene2 = Gene {
             id: "Inactive2".to_string(),
@@ -240,7 +238,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let inactive_gene2_ref = Rc::new(RefCell::new(inactive_gene2));
+        let inactive_gene2_ref = Arc::new(RwLock::new(inactive_gene2));
         let inactive_gene2_node = Gpr::Gene(inactive_gene2_ref.clone());
         let gpr_and_inactive = Gpr::Operation(GprOperation::And {
             left: Box::new(active_gene1_node),
@@ -256,7 +254,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let active_gene1_ref = Rc::new(RefCell::new(active_gene1));
+        let active_gene1_ref = Arc::new(RwLock::new(active_gene1));
         let active_gene1_node = Gpr::Gene(active_gene1_ref.clone());
         let active_gene2 = Gene {
             id: "Active2".to_string(),
@@ -265,7 +263,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let active_gene2_ref = Rc::new(RefCell::new(active_gene2));
+        let active_gene2_ref = Arc::new(RwLock::new(active_gene2));
         let active_gene2_node = Gpr::Gene(active_gene2_ref.clone());
         let gpr_and_inactive = Gpr::Operation(GprOperation::And {
             left: Box::new(active_gene1_node),
@@ -281,7 +279,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let inactive_gene1_ref = Rc::new(RefCell::new(inactive_gene1));
+        let inactive_gene1_ref = Arc::new(RwLock::new(inactive_gene1));
         let inactive_gene1_node = Gpr::Gene(inactive_gene1_ref.clone());
         let inactive_gene2 = Gene {
             id: "Inactive2".to_string(),
@@ -290,7 +288,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let inactive_gene2_ref = Rc::new(RefCell::new(inactive_gene2));
+        let inactive_gene2_ref = Arc::new(RwLock::new(inactive_gene2));
         let inactive_gene2_node = Gpr::Gene(inactive_gene2_ref.clone());
         let gpr_and_inactive = Gpr::Operation(GprOperation::And {
             left: Box::new(inactive_gene1_node),
@@ -309,7 +307,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let active_gene1_ref = Rc::new(RefCell::new(active_gene1));
+        let active_gene1_ref = Arc::new(RwLock::new(active_gene1));
         let active_gene1_node = Gpr::Gene(active_gene1_ref.clone());
         let inactive_gene2 = Gene {
             id: "Inactive2".to_string(),
@@ -318,7 +316,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let inactive_gene2_ref = Rc::new(RefCell::new(inactive_gene2));
+        let inactive_gene2_ref = Arc::new(RwLock::new(inactive_gene2));
         let inactive_gene2_node = Gpr::Gene(inactive_gene2_ref.clone());
         let gpr_and_inactive = Gpr::Operation(GprOperation::Or {
             left: Box::new(active_gene1_node),
@@ -334,7 +332,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let active_gene1_ref = Rc::new(RefCell::new(active_gene1));
+        let active_gene1_ref = Arc::new(RwLock::new(active_gene1));
         let active_gene1_node = Gpr::Gene(active_gene1_ref.clone());
         let active_gene2 = Gene {
             id: "Active2".to_string(),
@@ -343,7 +341,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let active_gene2_ref = Rc::new(RefCell::new(active_gene2));
+        let active_gene2_ref = Arc::new(RwLock::new(active_gene2));
         let active_gene2_node = Gpr::Gene(active_gene2_ref.clone());
         let gpr_or_active = Gpr::Operation(GprOperation::Or {
             left: Box::new(active_gene1_node),
@@ -359,7 +357,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let inactive_gene1_ref = Rc::new(RefCell::new(inactive_gene1));
+        let inactive_gene1_ref = Arc::new(RwLock::new(inactive_gene1));
         let inactive_gene1_node = Gpr::Gene(inactive_gene1_ref.clone());
         let inactive_gene2 = Gene {
             id: "Inactive2".to_string(),
@@ -368,7 +366,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let inactive_gene2_ref = Rc::new(RefCell::new(inactive_gene2));
+        let inactive_gene2_ref = Arc::new(RwLock::new(inactive_gene2));
         let inactive_gene2_node = Gpr::Gene(inactive_gene2_ref.clone());
         let gpr_and_inactive = Gpr::Operation(GprOperation::Or {
             left: Box::new(inactive_gene1_node),
@@ -387,7 +385,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let active_gene_ref = Rc::new(RefCell::new(active_gene1));
+        let active_gene_ref = Arc::new(RwLock::new(active_gene1));
         let active_gene_node = Gpr::Gene(active_gene_ref.clone());
         let active_not = Gpr::Operation(GprOperation::Not {
             val: Box::new(active_gene_node),
@@ -402,7 +400,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let inactive_gene_ref = Rc::new(RefCell::new(inactive_gene));
+        let inactive_gene_ref = Arc::new(RwLock::new(inactive_gene));
         let inactive_gene_node = Gpr::Gene(inactive_gene_ref.clone());
         let inactive_not = Gpr::Operation(GprOperation::Not {
             val: Box::new(inactive_gene_node),
@@ -420,7 +418,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let active_gene_ref = Rc::new(RefCell::new(active_gene1));
+        let active_gene_ref = Arc::new(RwLock::new(active_gene1));
         let active_gene_node = Gpr::Gene(active_gene_ref.clone());
         assert_eq!(format!("{}", active_gene_node), "Active1");
 
@@ -432,7 +430,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let active_gene1_ref = Rc::new(RefCell::new(active_gene1));
+        let active_gene1_ref = Arc::new(RwLock::new(active_gene1));
         let active_gene1_node = Gpr::Gene(active_gene1_ref.clone());
         let active_gene2 = Gene {
             id: "Active2".to_string(),
@@ -441,7 +439,7 @@ mod tests {
             notes: None,
             annotation: None,
         };
-        let active_gene2_ref = Rc::new(RefCell::new(active_gene2));
+        let active_gene2_ref = Arc::new(RwLock::new(active_gene2));
         let active_gene2_node = Gpr::Gene(active_gene2_ref.clone());
         let gpr_or_active = Gpr::Operation(GprOperation::Or {
             left: Box::new(active_gene1_node),
@@ -451,7 +449,7 @@ mod tests {
 
         // Test nested with parsing
         use crate::io::gpr_parse::parse_gpr;
-        let rv0001 = Rc::new(RefCell::new(
+        let rv0001 = Arc::new(RwLock::new(
             GeneBuilder::default()
                 .id("Rv0001".to_string())
                 .annotation(None)
@@ -459,7 +457,7 @@ mod tests {
                 .build()
                 .unwrap(),
         ));
-        let rv0002 = Rc::new(RefCell::new(
+        let rv0002 = Arc::new(RwLock::new(
             GeneBuilder::default()
                 .id("Rv0002".to_string())
                 .annotation(None)
@@ -467,7 +465,7 @@ mod tests {
                 .build()
                 .unwrap(),
         ));
-        let rv0003 = Rc::new(RefCell::new(
+        let rv0003 = Arc::new(RwLock::new(
             GeneBuilder::default()
                 .id("Rv0003".to_string())
                 .annotation(None)
@@ -485,7 +483,7 @@ mod tests {
         assert_eq!(format!("{}", gpr), "((Rv0001 and Rv0002) or Rv0003)");
 
         // Test chained binary operations
-        let rv0001 = Rc::new(RefCell::new(
+        let rv0001 = Arc::new(RwLock::new(
             GeneBuilder::default()
                 .id("Rv0001".to_string())
                 .annotation(None)
@@ -493,7 +491,7 @@ mod tests {
                 .build()
                 .unwrap(),
         ));
-        let rv0002 = Rc::new(RefCell::new(
+        let rv0002 = Arc::new(RwLock::new(
             GeneBuilder::default()
                 .id("Rv0002".to_string())
                 .annotation(None)
@@ -501,7 +499,7 @@ mod tests {
                 .build()
                 .unwrap(),
         ));
-        let rv0003 = Rc::new(RefCell::new(
+        let rv0003 = Arc::new(RwLock::new(
             GeneBuilder::default()
                 .id("Rv0003".to_string())
                 .annotation(None)
@@ -519,7 +517,7 @@ mod tests {
         assert_eq!(format!("{}", gpr), "((Rv0001 and Rv0002) or Rv0003)");
 
         // Test with Not
-        let rv0001 = Rc::new(RefCell::new(
+        let rv0001 = Arc::new(RwLock::new(
             GeneBuilder::default()
                 .id("Rv0001".to_string())
                 .annotation(None)
@@ -527,7 +525,7 @@ mod tests {
                 .build()
                 .unwrap(),
         ));
-        let rv0002 = Rc::new(RefCell::new(
+        let rv0002 = Arc::new(RwLock::new(
             GeneBuilder::default()
                 .id("Rv0002".to_string())
                 .annotation(None)
@@ -535,7 +533,7 @@ mod tests {
                 .build()
                 .unwrap(),
         ));
-        let rv0003 = Rc::new(RefCell::new(
+        let rv0003 = Arc::new(RwLock::new(
             GeneBuilder::default()
                 .id("Rv0003".to_string())
                 .annotation(None)

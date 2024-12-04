@@ -1,7 +1,6 @@
 //! Provides struct for representing an optimization problem's object
 
-use std::cell::{Ref, RefCell};
-use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
 use crate::optimize::variable::Variable;
 
@@ -44,7 +43,7 @@ impl Objective {
     }
 
     /// Add a new Linear term to the objective
-    pub fn add_linear_term(&mut self, variable: Rc<RefCell<Variable>>, coefficient: f64) {
+    pub fn add_linear_term(&mut self, variable: Arc<RwLock<Variable>>, coefficient: f64) {
         self.terms.push(ObjectiveTerm::Linear {
             var: variable,
             coef: coefficient,
@@ -54,8 +53,8 @@ impl Objective {
     /// Add a new Quadratic term to the objective
     pub fn add_quadratic_term(
         &mut self,
-        variable1: Rc<RefCell<Variable>>,
-        variable2: Rc<RefCell<Variable>>,
+        variable1: Arc<RwLock<Variable>>,
+        variable2: Arc<RwLock<Variable>>,
         coefficient: f64,
     ) {
         self.terms.push(ObjectiveTerm::Quadratic {
@@ -66,7 +65,7 @@ impl Objective {
     }
 
     /// Add a series of linear terms to the objective function
-    pub fn add_linear_terms(&mut self, variables: &[Rc<RefCell<Variable>>], coefficient: &[f64]) {
+    pub fn add_linear_terms(&mut self, variables: &[Arc<RwLock<Variable>>], coefficient: &[f64]) {
         self.terms
             .extend(Objective::zip_linear_terms(variables, coefficient));
     }
@@ -74,8 +73,8 @@ impl Objective {
     /// Add a series of quadratic terms to the objective function
     pub fn add_quadratic_terms(
         &mut self,
-        variables1: &[Rc<RefCell<Variable>>],
-        variables2: &[Rc<RefCell<Variable>>],
+        variables1: &[Arc<RwLock<Variable>>],
+        variables2: &[Arc<RwLock<Variable>>],
         coefficients: &[f64],
     ) {
         self.terms.extend(Objective::zip_quadratic_terms(
@@ -87,7 +86,7 @@ impl Objective {
 
     /// Zip together slice of variable references with coefficients to create linear terms
     fn zip_linear_terms(
-        variables: &[Rc<RefCell<Variable>>],
+        variables: &[Arc<RwLock<Variable>>],
         coefficient: &[f64],
     ) -> Vec<ObjectiveTerm> {
         variables
@@ -100,8 +99,8 @@ impl Objective {
     /// Zip together two slices of variable and references with coefficients to create quadratic
     /// terms
     fn zip_quadratic_terms(
-        variables1: &[Rc<RefCell<Variable>>],
-        variables2: &[Rc<RefCell<Variable>>],
+        variables1: &[Arc<RwLock<Variable>>],
+        variables2: &[Arc<RwLock<Variable>>],
         coefficients: &[f64],
     ) -> Vec<ObjectiveTerm> {
         variables1
@@ -129,16 +128,16 @@ pub enum ObjectiveTerm {
     /// A quadratic term in the objective
     Quadratic {
         /// First variable in the objective term
-        var1: Rc<RefCell<Variable>>,
+        var1: Arc<RwLock<Variable>>,
         /// Second variable in the objective term
-        var2: Rc<RefCell<Variable>>,
+        var2: Arc<RwLock<Variable>>,
         /// Coefficient for quadratic term
         coef: f64,
     },
     /// A linear term in the objective
     Linear {
         /// Variable in objective term
-        var: Rc<RefCell<Variable>>,
+        var: Arc<RwLock<Variable>>,
         /// Coefficient for linear term
         coef: f64,
     },
@@ -147,15 +146,15 @@ pub enum ObjectiveTerm {
 impl ObjectiveTerm {
     /// Create a new quadratic objective term
     pub fn new_quadratic(
-        var1: Rc<RefCell<Variable>>,
-        var2: Rc<RefCell<Variable>>,
+        var1: Arc<RwLock<Variable>>,
+        var2: Arc<RwLock<Variable>>,
         coef: f64,
     ) -> Self {
         ObjectiveTerm::Quadratic { var1, var2, coef }
     }
 
     /// Create a new linear objective term
-    pub fn new_linear(var: Rc<RefCell<Variable>>, coef: f64) -> Self {
+    pub fn new_linear(var: Arc<RwLock<Variable>>, coef: f64) -> Self {
         ObjectiveTerm::Linear { var, coef }
     }
 }

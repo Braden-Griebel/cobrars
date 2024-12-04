@@ -3,8 +3,7 @@ use crate::optimize::constraint::Constraint;
 use crate::optimize::objective::Objective;
 use crate::optimize::variable::Variable;
 use indexmap::IndexMap;
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
 /// An optimization problem
 #[derive(Debug, Clone)]
@@ -12,9 +11,9 @@ pub struct Problem {
     /// Objective to optimize
     objective: Objective,
     /// Variables of the optimization problem
-    variables: IndexMap<String, Rc<RefCell<Variable>>>,
+    variables: IndexMap<String, Arc<RwLock<Variable>>>,
     /// Constraints of the optimization problem
-    constraints: IndexMap<String, Rc<RefCell<Constraint>>>,
+    constraints: IndexMap<String, Arc<RwLock<Constraint>>>,
     /// Current status of the optimization problem
     status: OptimizationStatus,
     /// Values of the optimized variables. Will be None before optimization,
