@@ -1,5 +1,5 @@
-use std::fmt::Debug;
 use crate::optimize::objective::ObjectiveSense;
+use std::fmt::Debug;
 use thiserror::Error;
 
 #[cfg(feature = "scip")]
@@ -11,7 +11,7 @@ pub mod osqp;
 pub mod clarabel;
 
 /// Trait for structs implementing a solver backend interface
-pub trait Solver: Debug + Clone{
+pub trait Solver: Debug + Clone {
     // region capabilities
     /// Returns whether the solver can handle a quadratic objective
     fn quadratic_objective_capable(&self) -> bool;
@@ -70,7 +70,11 @@ pub trait Solver: Debug + Clone{
     // endregion constraints
     // region objective
     /// Add a linear term to the objective
-    fn add_linear_objective_term(&mut self,variable_id: &str, coefficient: f64) -> Result<(), SolverError>;
+    fn add_linear_objective_term(
+        &mut self,
+        variable_id: &str,
+        coefficient: f64,
+    ) -> Result<(), SolverError>;
     /// Add a quadratic term to the objective
     fn add_quadratic_objective_term(
         &mut self,
@@ -85,7 +89,7 @@ pub trait Solver: Debug + Clone{
     fn clear_objective(&mut self) -> Result<(), SolverError>;
     // endregion objective
     // region solver properties
-    fn new()-> Self;
+    fn new() -> Self;
     // endregion solver properties
 }
 

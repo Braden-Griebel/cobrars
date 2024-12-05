@@ -52,9 +52,9 @@ impl Reaction {
     pub fn get_reverse_id(&self) -> String {
         format!("{}_reverse_{}", &self.id, hash_as_hex_string(&self.id))
     }
-    
+
     /// Wrap the reaction in an Arc<RwLock<>>
-    pub fn wrap(self)-> Arc<RwLock<Reaction>> {
+    pub fn wrap(self) -> Arc<RwLock<Reaction>> {
         Arc::new(RwLock::new(self))
     }
 }

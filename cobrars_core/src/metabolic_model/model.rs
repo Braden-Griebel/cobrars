@@ -4,9 +4,9 @@ use crate::metabolic_model::metabolite::Metabolite;
 use crate::metabolic_model::reaction::Reaction;
 use crate::optimize::problem::Problem;
 
+use crate::optimize::solvers::Solver;
 use indexmap::IndexMap;
 use std::sync::{Arc, RwLock};
-use crate::optimize::solvers::Solver;
 
 /// Represents a Genome Scale Metabolic Model
 #[derive(Clone, Debug)]

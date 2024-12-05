@@ -239,7 +239,8 @@ impl Model {
                 lower_bound: r.read().unwrap().lower_bound,
                 upper_bound: r.read().unwrap().upper_bound,
                 gene_reaction_rule: r
-                    .read().unwrap()
+                    .read()
+                    .unwrap()
                     .gpr
                     .clone()
                     .map(|rule| rule.to_string_id())
@@ -247,12 +248,14 @@ impl Model {
                 objective_coefficient: self.objective.get(&r.read().unwrap().id).copied(),
                 subsystem: r.read().unwrap().subsystem.clone(),
                 notes: r
-                    .read().unwrap()
+                    .read()
+                    .unwrap()
                     .notes
                     .clone()
                     .map(|n| serde_json::from_str(&n).unwrap_or(Value::String(n))),
                 annotation: r
-                    .read().unwrap()
+                    .read()
+                    .unwrap()
                     .annotation
                     .clone()
                     .map(|a| serde_json::from_str(&a).unwrap_or(Value::String(a))),
@@ -511,9 +514,9 @@ mod json_tests {
 mod model_tests {
     use super::*;
     use crate::metabolic_model::gene::{Gpr, GprOperation};
+    use crate::optimize::solvers::clarabel::ClarabelSolver;
     use std::collections::HashMap;
     use std::path::PathBuf;
-    use crate::optimize::solvers::clarabel::ClarabelSolver;
 
     #[test]
     fn test_gene_conversion() {

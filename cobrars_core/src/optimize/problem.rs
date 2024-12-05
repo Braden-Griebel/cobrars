@@ -84,17 +84,15 @@ impl Problem {
             VariableType::Continuous => {
                 // This will not change the type
             }
-            VariableType::Integer|VariableType::Binary => {
-                match self.problem_type {
-                    ProblemType::LinearContinuous => {
-                        self.problem_type = ProblemType::LinearMixedInteger;
-                    }
-                    ProblemType::QuadraticContinuous => {
-                        self.problem_type = ProblemType::QuadraticMixedInteger;
-                    }
-                    _=>{}
+            VariableType::Integer | VariableType::Binary => match self.problem_type {
+                ProblemType::LinearContinuous => {
+                    self.problem_type = ProblemType::LinearMixedInteger;
                 }
-            }
+                ProblemType::QuadraticContinuous => {
+                    self.problem_type = ProblemType::QuadraticMixedInteger;
+                }
+                _ => {}
+            },
         }
         Ok(())
     }
@@ -308,6 +306,49 @@ impl Problem {
 
     // endregion update variable bounds
 
+    // region update constraint bounds
+
+    pub fn update_equality_constraint_bound(
+        &mut self,
+        constraint_id: &str,
+        new_equals: f64,
+    ) -> Result<(), ProblemError> {
+        let cons = self.constraints.get(constraint_id).ok_or(ProblemError::NonExistentConstraint)?;
+        match *(cons.write().unwrap()) {
+            Constraint::Equality { ref mut equals, .. } => {
+                *equals = new_equals;
+            }
+            Constraint::Inequality { .. } => {
+                return Err(ProblemError::InvalidEqualityConstraintBoundsUpdate);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn update_inequality_constraint_bounds(
+        &mut self,
+        constraint_id: &str,
+        new_lower_bound: f64,
+        new_upper_bound: f64,
+    ) -> Result<(), ProblemError> {
+        if new_lower_bound > new_upper_bound {
+            return Err(ProblemError::InvalidConstraintBounds);
+        }
+        let cons = self.constraints.get(constraint_id).ok_or(ProblemError::NonExistentConstraint)?;
+        match (*cons.write().unwrap()) {
+            Constraint::Equality { .. } => {
+                return Err(ProblemError::InvalidInequalityConstraintBoundsUpdate);
+            }
+            Constraint::Inequality { ref mut lower_bound, ref mut upper_bound, .. } => {
+                *lower_bound = new_lower_bound;
+                *upper_bound = new_upper_bound;
+            }
+        };
+        Ok(())
+    }
+
+    // endregion update constrint bounds
+
     // region Remove Variables
     /// Remove a variable from the problem, will also remove it as a term from all constraints
     /// and any terms in the objective that include this variable
@@ -349,11 +390,11 @@ impl Problem {
         self.objective.remove_all_terms();
         // Demote problem type if needed
         match self.problem_type {
-            ProblemType::LinearContinuous => self.problem_type = ProblemType::LinearContinuous,
-            ProblemType::QuadraticContinuous => self.problem_type = ProblemType::LinearContinuous,
-            ProblemType::LinearMixedInteger => self.problem_type = ProblemType::LinearMixedInteger,
-            ProblemType::QuadraticMixedInteger => {
-                self.problem_type = ProblemType::QuadraticMixedInteger
+            ProblemType::LinearContinuous | ProblemType::QuadraticContinuous => {
+                self.problem_type = ProblemType::LinearContinuous
+            }
+            ProblemType::LinearMixedInteger | ProblemType::QuadraticMixedInteger => {
+                self.problem_type = ProblemType::LinearMixedInteger
             }
         }
     }
@@ -574,8 +615,17 @@ pub enum ProblemError {
     #[error("Tried adding an objective term with variables not in the model")]
     NonExistentVariablesInObjective,
     /// Error when trying to perform an update or drop on a variable that doesn't exist
-    #[error("Tried to access a variable that doesn't exist")]
+    #[error("Tried to access a variable that isn't int the problem")]
     NonExistentVariable,
+    /// Error when trying to perform an update or drop on a constraint that isn't in the problem
+    #[error("Tried to access a constraint that isn't in the problem")]
+    NonExistentConstraint,
+    /// Error when  trying to update lower and upper bound on equality constraint
+    #[error("Tried to update equality constraint with too many bounds")]
+    InvalidEqualityConstraintBoundsUpdate,
+    /// Error when trying to update equals bound on inequality constraint
+    #[error("Tried to update inequality constraint with too few bounds")]
+    InvalidInequalityConstraintBoundsUpdate,
 }
 
 #[cfg(test)]
@@ -677,28 +727,50 @@ mod tests {
             .unwrap();
 
         // Add an equality constraint
-        problem.add_new_equality_constraint_by_id("test_equality_constraint", &["x", "y"], &[2., 3.], 200.).unwrap();
+        problem
+            .add_new_equality_constraint_by_id(
+                "test_equality_constraint",
+                &["x", "y"],
+                &[2., 3.],
+                200.,
+            )
+            .unwrap();
 
         // Check that the constraint was correctly added
         let cons = problem.constraints.get("test_equality_constraint").unwrap();
         match *(cons.clone().read().unwrap()) {
-            Constraint::Equality {equals, ..} => {
-                assert!((equals-200.).abs()<1e-25)
+            Constraint::Equality { equals, .. } => {
+                assert!((equals - 200.).abs() < 1e-25)
             }
-            Constraint::Inequality {..} => panic!("Incorrect constraint type added")
+            Constraint::Inequality { .. } => panic!("Incorrect constraint type added"),
         }
-        
+
         // Add an inequality constraint
-        problem.add_new_inequality_constraint_by_id("test_inequality_constraint", &["x", "y"], &[2., 3.], 100., 200.).unwrap();
+        problem
+            .add_new_inequality_constraint_by_id(
+                "test_inequality_constraint",
+                &["x", "y"],
+                &[2., 3.],
+                100.,
+                200.,
+            )
+            .unwrap();
 
         // Check that the constraint was correctly added
-        let cons = problem.constraints.get("test_inequality_constraint").unwrap();
+        let cons = problem
+            .constraints
+            .get("test_inequality_constraint")
+            .unwrap();
         match *(cons.clone().read().unwrap()) {
-            Constraint::Inequality {lower_bound, upper_bound, ..} => {
-                assert!((lower_bound-100.).abs()<1e-25);
-                assert!((upper_bound-200.).abs()<1e-25);
+            Constraint::Inequality {
+                lower_bound,
+                upper_bound,
+                ..
+            } => {
+                assert!((lower_bound - 100.).abs() < 1e-25);
+                assert!((upper_bound - 200.).abs() < 1e-25);
             }
-            Constraint::Equality {..} => panic!("Incorrect constraint type added")
+            Constraint::Equality { .. } => panic!("Incorrect constraint type added"),
         }
     }
 
@@ -723,9 +795,190 @@ mod tests {
                 200.,
                 100.,
             )
-        {
-        } else {
+        {} else {
             panic!("Invalid constraint bounds not caught")
+        }
+    }
+
+    #[test]
+    fn add_objective_term() {
+        let mut problem = Problem::new(ObjectiveSense::Maximize);
+        problem
+            .add_new_variable("x", None, VariableType::Continuous, 64., 100.)
+            .unwrap();
+        problem
+            .add_new_variable("y", None, VariableType::Continuous, 25., 150.)
+            .unwrap();
+
+        // add a linear term to the objective
+        problem
+            .add_new_linear_objective_term_by_id("x", 26.)
+            .unwrap();
+        // check that the problem is still a linear continuous problem
+        assert_eq!(problem.problem_type, ProblemType::LinearContinuous);
+        // Check that the objective is the right length
+        assert_eq!(problem.objective.terms.len(), 1);
+        // Check that the objective term matches the expected value
+        let term = problem.objective.terms[0].clone();
+        match problem.objective.terms[0] {
+            ObjectiveTerm::Quadratic { .. } => {
+                panic!("Incorrect objective term");
+            }
+            ObjectiveTerm::Linear { ref var, coef } => {
+                let v = var.read().unwrap();
+                if v.id != "x"
+                    || v.variable_type != VariableType::Continuous
+                    || (v.lower_bound - 64.).abs() > 1e-25
+                    || (v.upper_bound - 100.).abs() > 1e-25
+                    || (coef - 26.).abs() > 1e-25
+                {
+                    panic!("Incorrect Variable in Objective")
+                }
+            }
+        }
+
+        // Add a quadratic term to the objective
+        problem
+            .add_new_quadratic_objective_term_by_id("x", "y", 2.)
+            .unwrap();
+        // Check that the problem is now a quadratic continuous problem
+        assert_eq!(problem.problem_type, ProblemType::QuadraticContinuous);
+        assert_eq!(problem.objective.terms.len(), 2);
+
+        match problem.objective.terms[1] {
+            ObjectiveTerm::Quadratic {
+                ref var1,
+                ref var2,
+                coef,
+            } => {
+                let v1 = var1.read().unwrap();
+                if v1.id != "x"
+                    || v1.variable_type != VariableType::Continuous
+                    || (v1.lower_bound - 64.).abs() > 1e-25
+                    || (v1.upper_bound - 100.).abs() > 1e-25
+                {
+                    panic!("Incorrect Variable in Objective")
+                }
+
+                let v2 = var2.read().unwrap();
+                if v2.id != "y"
+                    || v2.variable_type != VariableType::Continuous
+                    || (v2.lower_bound - 25.).abs() > 1e-25
+                    || (v2.upper_bound - 150.).abs() > 1e-25
+                {
+                    panic!("Incorrect Variable in Objective")
+                }
+
+                if (coef - 2.).abs() > 1e-25 {
+                    panic!("Incorrect coefficient of quadratic objective term");
+                }
+            }
+            ObjectiveTerm::Linear { .. } => {
+                panic!("Incorrect objective term");
+            }
+        }
+
+        // Now add a integer variable
+        problem
+            .add_new_variable("z", None, VariableType::Integer, 4., 10.)
+            .unwrap();
+        // Check that the problem type is now a QuadraticMixedInteger
+        assert_eq!(problem.problem_type, ProblemType::QuadraticMixedInteger);
+        assert_eq!(problem.objective.terms.len(), 2);
+    }
+
+    #[test]
+    fn update_variable_bounds() {
+        let mut problem = Problem::new(ObjectiveSense::Maximize);
+        problem
+            .add_new_variable("x", None, VariableType::Continuous, 64., 100.)
+            .unwrap();
+        if let Some(var) = problem.variables.get("x") {
+            let v = var.read().unwrap();
+            if (v.lower_bound - 64.).abs() > 1e-25 {
+                panic!("Incorrect variable bounds");
+            }
+            if (v.upper_bound - 100.).abs() > 1e-25 {
+                panic!("Incorrect variable bounds");
+            }
+        } else {
+            panic!("Variable not added correctly")
+        }
+
+        problem.update_variable_bounds("x", 4., 5.).unwrap();
+        if let Some(var) = problem.variables.get("x") {
+            let v = var.read().unwrap();
+            if (v.lower_bound - 4.).abs() > 1e-25 {
+                panic!("Incorrect variable bounds");
+            }
+            if (v.upper_bound - 5.).abs() > 1e-25 {
+                panic!("Incorrect variable bounds");
+            }
+        } else {
+            panic!("Variable not added correctly")
+        }
+    }
+
+    #[test]
+    fn test_bad_update_variable_bounds() {
+        let mut problem = Problem::new(ObjectiveSense::Maximize);
+        problem
+            .add_new_variable("x", None, VariableType::Continuous, 64., 100.)
+            .unwrap();
+
+        let res = problem.update_variable_bounds("x", 5., 4.);
+        assert!(res.is_err());
+        if let Err(ProblemError::InvalidVariableBounds) = res {} else {
+            panic!("Bad Variable Bounds Failed to be Caught")
+        }
+    }
+
+    #[test]
+    fn test_constraint_bounds_update() {
+        let mut problem = Problem::new(ObjectiveSense::Maximize);
+        problem
+            .add_new_variable("x", None, VariableType::Continuous, 64., 100.)
+            .unwrap();
+        problem
+            .add_new_variable("y", None, VariableType::Continuous, 64., 100.)
+            .unwrap();
+
+        problem.add_new_equality_constraint_by_id("test_equality_constraint", &["x", "y"], &[2., 3.], 5.).unwrap();
+
+        problem.update_equality_constraint_bound("test_equality_constraint", 100.).unwrap();
+
+        if let Some(cons) = problem.constraints.get("test_equality_constraint") {
+            match *(cons.read().unwrap()) {
+                Constraint::Equality { equals, .. } => {
+                    if (equals - 100.).abs() > 1e-25 {
+                        panic!("Incorrect constraint bounds")
+                    }
+                }
+                Constraint::Inequality { .. } => {
+                    panic!("Incorrect constraint")
+                }
+            }
+        }
+    
+        // Test inequality constraint update
+        problem.add_new_inequality_constraint_by_id("test_inequality_constraint", &["x", "y"], &[2., 3.], 7., 10.).unwrap();
+        
+        problem.update_inequality_constraint_bounds("test_inequality_constraint", 150., 250.).unwrap();
+        
+        if let Some(cons) = problem.constraints.get("test_inequality_constraint") {
+            match *(cons.read().unwrap()) {
+                Constraint::Equality {  .. } => {
+                    panic!("Incorrect constraint")
+                }
+                Constraint::Inequality { lower_bound, upper_bound, .. } => {
+                    if (lower_bound - 150.).abs() > 1e-25 {
+                        panic!("Incorrect constraint bounds")
+                    }
+                    if (upper_bound - 250.).abs() > 1e-25 {
+                        panic!("Incorrect constraint bounds")
+                    }
+                }
+            }
         }
     }
 }

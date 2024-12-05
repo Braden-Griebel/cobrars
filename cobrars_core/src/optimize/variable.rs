@@ -20,7 +20,7 @@ pub struct Variable {
     pub variable_type: VariableType,
     /// Index of the variable (used internally)
     #[builder(default = "0")]
-    pub (crate) index: usize,
+    pub(crate) index: usize,
     /// Lower bound for the variable, the smallest value it can take
     #[builder(default = "0.0")]
     pub lower_bound: f64,
@@ -59,8 +59,8 @@ impl Variable {
             upper_bound,
         }))
     }
-    
-    /// Returns a wrapped reference to the variable which can then be used when constructing 
+
+    /// Returns a wrapped reference to the variable which can then be used when constructing
     /// constraints
     pub fn wrap(self) -> Arc<RwLock<Variable>> {
         Arc::new(RwLock::new(self))

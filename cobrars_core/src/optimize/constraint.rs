@@ -13,7 +13,7 @@ pub enum Constraint {
     Equality {
         /// ID of the constraint
         id: String,
-        /// Linear terms which are added together, see [`ConstraintTerm`] for more 
+        /// Linear terms which are added together, see [`ConstraintTerm`] for more
         terms: Vec<ConstraintTerm>,
         /// The right hand side of the equality constraint
         equals: f64,
@@ -22,7 +22,7 @@ pub enum Constraint {
     Inequality {
         /// ID of the constraint
         id: String,
-        /// Linear terms which are added together, see [`ConstraintTerm`] for more 
+        /// Linear terms which are added together, see [`ConstraintTerm`] for more
         terms: Vec<ConstraintTerm>,
         /// The lowest value the sum of the terms can take
         lower_bound: f64,
@@ -75,7 +75,7 @@ impl Constraint {
             equals,
         }
     }
-    
+
     /// Create a new inequality constraint
     ///
     /// # Parameters
@@ -118,16 +118,19 @@ impl Constraint {
         Constraint::Inequality {
             id: id.to_string(),
             terms: Constraint::zip_into_terms(variables, coefficients),
-            lower_bound, 
+            lower_bound,
             upper_bound,
         }
     }
     
+    /// Update the equals for a equals constraint
+    //pub fn update_equals(&mut self) {}
+
     /// Wrap the constraint in an Arc<RwLock<>>
-    pub fn wrap(self)-> Arc<RwLock<Self>>{
+    pub fn wrap(self) -> Arc<RwLock<Self>> {
         Arc::new(RwLock::new(self))
     }
-    
+
     /// Get a vec of variables in the constraint
     pub(crate) fn get_variables(&self) -> Vec<Arc<RwLock<Variable>>> {
         let mut variables = Vec::new();
@@ -145,18 +148,18 @@ impl Constraint {
         }
         variables
     }
-    
+
     /// Remove any terms in the constraint which includes a given variable (passed by id)
-    pub fn remove_variable(&mut self, variable_id: &str){
+    pub fn remove_variable(&mut self, variable_id: &str) {
         match self {
-            Constraint::Equality { terms, .. } | Constraint::Inequality {terms, ..}=> {
-                *terms = terms.drain(..).filter(|t| {
-                    t.variable.read().unwrap().id != variable_id
-                }).collect()
+            Constraint::Equality { terms, .. } | Constraint::Inequality { terms, .. } => {
+                *terms = terms
+                    .drain(..)
+                    .filter(|t| t.variable.read().unwrap().id != variable_id)
+                    .collect()
             }
         }
     }
-    
 
     /// Take a slice of variable references, and a slice of coefficients and zip
     /// them together into a vec of ConstraintTerms
@@ -177,7 +180,7 @@ impl Constraint {
     /// Create a string representation of the terms in the Constraint
     fn constraint_to_string(&self) -> String {
         match self {
-            Constraint::Equality {id, terms, equals } => {
+            Constraint::Equality { id, terms, equals } => {
                 format!("{}: {} = {}", id, Self::terms_to_string(terms), equals)
             }
             Constraint::Inequality {
@@ -206,9 +209,9 @@ impl Constraint {
         str_rep.push_str(format!("{}", terms.last().unwrap()).as_str());
         str_rep
     }
-    
+
     /// Get the id of the constraint
-    pub fn get_id(&self)->String {
+    pub fn get_id(&self) -> String {
         match self {
             Constraint::Equality { id, .. } => id.to_string(),
             Constraint::Inequality { id, .. } => id.to_string(),
@@ -234,6 +237,11 @@ pub struct ConstraintTerm {
 
 impl Display for ConstraintTerm {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}*{}", self.coefficient, self.variable.read().unwrap().id)
+        write!(
+            f,
+            "{}*{}",
+            self.coefficient,
+            self.variable.read().unwrap().id
+        )
     }
 }

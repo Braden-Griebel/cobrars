@@ -6,9 +6,9 @@ use crate::metabolic_model::gene::{
 use std::io::BufRead;
 use std::sync::{Arc, RwLock};
 
-use thiserror::Error;
 use indexmap::IndexMap;
 use serde::Deserialize;
+use thiserror::Error;
 /*
 GPR Grammar:
 expression -> binary
@@ -410,7 +410,9 @@ mod tests {
                         Gpr::Operation(_) => {
                             panic!("Should Have Been a Gene Parsed")
                         }
-                        Gpr::Gene(gene_ref) => if gene_ref.read().unwrap().id != "Rv0018".to_string() {},
+                        Gpr::Gene(gene_ref) => {
+                            if gene_ref.read().unwrap().id != "Rv0018".to_string() {}
+                        }
                     }
                 }
                 _ => {
@@ -479,9 +481,13 @@ mod tests {
         let mut gene_map = IndexMap::new();
         let mut parser = GPRParser::new(token_vec, &mut gene_map);
         match parser.parse() {
-            Ok(_)=>{panic!("Should not have parsed")},
-            Err(ParseError::EarlyTermination) => {},
-            Err(_)=>{panic!("Incorrect error returned")}
+            Ok(_) => {
+                panic!("Should not have parsed")
+            }
+            Err(ParseError::EarlyTermination) => {}
+            Err(_) => {
+                panic!("Incorrect error returned")
+            }
         };
     }
 }

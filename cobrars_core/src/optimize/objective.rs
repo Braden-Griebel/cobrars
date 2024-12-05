@@ -83,7 +83,7 @@ impl Objective {
             coefficients,
         ));
     }
-    
+
     /// Checks if the objective term contains quadratic terms
     pub fn contains_quadratic(&self) -> bool {
         for t in &self.terms {
@@ -93,24 +93,24 @@ impl Objective {
         }
         false
     }
-    
+
     /// Empty the objective of all terms
     pub fn remove_all_terms(&mut self) {
         self.terms = Vec::new();
     }
-    
+
     /// Remove any terms which include a variable with a given `id`
-    pub fn remove_terms_with_variable(&mut self, id: &str){
-        self.terms = self.terms.drain(..).filter(|t|{
-            match t {
-                ObjectiveTerm::Linear { var, .. } => {
-                    var.read().unwrap().id != id
-                }
+    pub fn remove_terms_with_variable(&mut self, id: &str) {
+        self.terms = self
+            .terms
+            .drain(..)
+            .filter(|t| match t {
+                ObjectiveTerm::Linear { var, .. } => var.read().unwrap().id != id,
                 ObjectiveTerm::Quadratic { var1, var2, .. } => {
-                    !((var1.read().unwrap().id==id)||(var2.read().unwrap().id==id))
+                    !((var1.read().unwrap().id == id) || (var2.read().unwrap().id == id))
                 }
-            }
-        }).collect();
+            })
+            .collect();
     }
 
     /// Zip together slice of variable references with coefficients to create linear terms
