@@ -122,7 +122,7 @@ impl Constraint {
             upper_bound,
         }
     }
-    
+
     /// Update the equals for a equals constraint
     //pub fn update_equals(&mut self) {}
 
@@ -230,9 +230,9 @@ impl Display for Constraint {
 #[derive(Debug, Clone)]
 pub struct ConstraintTerm {
     /// A reference to a [`Variable`]
-    variable: Arc<RwLock<Variable>>,
+    pub(super) variable: Arc<RwLock<Variable>>,
     /// The coefficient for the variable
-    coefficient: f64,
+    pub(super) coefficient: f64,
 }
 
 impl Display for ConstraintTerm {

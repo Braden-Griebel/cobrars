@@ -198,7 +198,7 @@ mod tests {
     use std::sync::{Arc, RwLock};
 
     #[test]
-    fn test_gene_node() {
+    fn gene_node() {
         let active_gene = Gene {
             id: "Active".to_string(),
             name: None,
@@ -220,7 +220,7 @@ mod tests {
     }
 
     #[test]
-    fn test_and_node() {
+    fn and_node() {
         // Try an inactive and an active
         let active_gene1 = Gene {
             id: "Active1".to_string(),
@@ -298,7 +298,7 @@ mod tests {
     }
 
     #[test]
-    fn test_or_node() {
+    fn or_node() {
         // Try an inactive and an active
         let active_gene1 = Gene {
             id: "Active1".to_string(),
@@ -376,7 +376,7 @@ mod tests {
     }
 
     #[test]
-    fn test_not_node() {
+    fn not_node() {
         // Test Active Gene
         let active_gene1 = Gene {
             id: "Active1".to_string(),
@@ -409,7 +409,7 @@ mod tests {
     }
 
     #[test]
-    fn test_display() {
+    fn display() {
         // Test single gene display
         let active_gene1 = Gene {
             id: "Active1".to_string(),

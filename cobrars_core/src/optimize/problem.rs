@@ -313,7 +313,10 @@ impl Problem {
         constraint_id: &str,
         new_equals: f64,
     ) -> Result<(), ProblemError> {
-        let cons = self.constraints.get(constraint_id).ok_or(ProblemError::NonExistentConstraint)?;
+        let cons = self
+            .constraints
+            .get(constraint_id)
+            .ok_or(ProblemError::NonExistentConstraint)?;
         match *(cons.write().unwrap()) {
             Constraint::Equality { ref mut equals, .. } => {
                 *equals = new_equals;
@@ -334,12 +337,19 @@ impl Problem {
         if new_lower_bound > new_upper_bound {
             return Err(ProblemError::InvalidConstraintBounds);
         }
-        let cons = self.constraints.get(constraint_id).ok_or(ProblemError::NonExistentConstraint)?;
+        let cons = self
+            .constraints
+            .get(constraint_id)
+            .ok_or(ProblemError::NonExistentConstraint)?;
         match (*cons.write().unwrap()) {
             Constraint::Equality { .. } => {
                 return Err(ProblemError::InvalidInequalityConstraintBoundsUpdate);
             }
-            Constraint::Inequality { ref mut lower_bound, ref mut upper_bound, .. } => {
+            Constraint::Inequality {
+                ref mut lower_bound,
+                ref mut upper_bound,
+                ..
+            } => {
                 *lower_bound = new_lower_bound;
                 *upper_bound = new_upper_bound;
             }
@@ -352,7 +362,7 @@ impl Problem {
     // region Remove Variables
     /// Remove a variable from the problem, will also remove it as a term from all constraints
     /// and any terms in the objective that include this variable
-    pub fn delete_variable(&mut self, variable_id: &str) -> Result<(), ProblemError> {
+    pub fn remove_variable(&mut self, variable_id: &str) -> Result<(), ProblemError> {
         // Start by removing any terms in the objective including this variable
         self.objective.remove_terms_with_variable(variable_id);
         // Now remove any terms from constraints which include the variable
@@ -368,6 +378,8 @@ impl Problem {
         };
         // And fix the index of the variables, as well as the count
         self.fix_variable_indices_and_count();
+        // fix the problem type
+        self.fix_problem_type();
         Ok(())
     }
 
@@ -587,9 +599,6 @@ pub enum ProblemType {
     /// Problem with linear objective and constraints, with integer and continuous variables
     LinearMixedInteger,
     /// Problem with a quadratic objective function, and some integer variables
-    ///
-    /// # Note:
-    /// This problem type is not currently supported by any of the solvers
     QuadraticMixedInteger,
 }
 
@@ -621,10 +630,10 @@ pub enum ProblemError {
     #[error("Tried to access a constraint that isn't in the problem")]
     NonExistentConstraint,
     /// Error when  trying to update lower and upper bound on equality constraint
-    #[error("Tried to update equality constraint with too many bounds")]
+    #[error("Tried to update inequality constraint with the equality bound update method")]
     InvalidEqualityConstraintBoundsUpdate,
     /// Error when trying to update equals bound on inequality constraint
-    #[error("Tried to update inequality constraint with too few bounds")]
+    #[error("Tried to update equality constraint using the inequality bounds update method")]
     InvalidInequalityConstraintBoundsUpdate,
 }
 
@@ -795,7 +804,8 @@ mod tests {
                 200.,
                 100.,
             )
-        {} else {
+        {
+        } else {
             panic!("Invalid constraint bounds not caught")
         }
     }
@@ -920,7 +930,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bad_update_variable_bounds() {
+    fn bad_update_variable_bounds() {
         let mut problem = Problem::new(ObjectiveSense::Maximize);
         problem
             .add_new_variable("x", None, VariableType::Continuous, 64., 100.)
@@ -928,13 +938,14 @@ mod tests {
 
         let res = problem.update_variable_bounds("x", 5., 4.);
         assert!(res.is_err());
-        if let Err(ProblemError::InvalidVariableBounds) = res {} else {
+        if let Err(ProblemError::InvalidVariableBounds) = res {
+        } else {
             panic!("Bad Variable Bounds Failed to be Caught")
         }
     }
 
     #[test]
-    fn test_constraint_bounds_update() {
+    fn constraint_bounds_update() {
         let mut problem = Problem::new(ObjectiveSense::Maximize);
         problem
             .add_new_variable("x", None, VariableType::Continuous, 64., 100.)
@@ -943,9 +954,18 @@ mod tests {
             .add_new_variable("y", None, VariableType::Continuous, 64., 100.)
             .unwrap();
 
-        problem.add_new_equality_constraint_by_id("test_equality_constraint", &["x", "y"], &[2., 3.], 5.).unwrap();
+        problem
+            .add_new_equality_constraint_by_id(
+                "test_equality_constraint",
+                &["x", "y"],
+                &[2., 3.],
+                5.,
+            )
+            .unwrap();
 
-        problem.update_equality_constraint_bound("test_equality_constraint", 100.).unwrap();
+        problem
+            .update_equality_constraint_bound("test_equality_constraint", 100.)
+            .unwrap();
 
         if let Some(cons) = problem.constraints.get("test_equality_constraint") {
             match *(cons.read().unwrap()) {
@@ -959,18 +979,32 @@ mod tests {
                 }
             }
         }
-    
+
         // Test inequality constraint update
-        problem.add_new_inequality_constraint_by_id("test_inequality_constraint", &["x", "y"], &[2., 3.], 7., 10.).unwrap();
-        
-        problem.update_inequality_constraint_bounds("test_inequality_constraint", 150., 250.).unwrap();
-        
+        problem
+            .add_new_inequality_constraint_by_id(
+                "test_inequality_constraint",
+                &["x", "y"],
+                &[2., 3.],
+                7.,
+                10.,
+            )
+            .unwrap();
+
+        problem
+            .update_inequality_constraint_bounds("test_inequality_constraint", 150., 250.)
+            .unwrap();
+
         if let Some(cons) = problem.constraints.get("test_inequality_constraint") {
             match *(cons.read().unwrap()) {
-                Constraint::Equality {  .. } => {
+                Constraint::Equality { .. } => {
                     panic!("Incorrect constraint")
                 }
-                Constraint::Inequality { lower_bound, upper_bound, .. } => {
+                Constraint::Inequality {
+                    lower_bound,
+                    upper_bound,
+                    ..
+                } => {
                     if (lower_bound - 150.).abs() > 1e-25 {
                         panic!("Incorrect constraint bounds")
                     }
@@ -980,5 +1014,193 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn bad_update_constraint_bounds() {
+        let mut problem = Problem::new(ObjectiveSense::Maximize);
+        problem
+            .add_new_variable("x", None, VariableType::Continuous, 64., 100.)
+            .unwrap();
+        problem
+            .add_new_variable("y", None, VariableType::Continuous, 64., 100.)
+            .unwrap();
+
+        problem
+            .add_new_inequality_constraint_by_id(
+                "test_inequality_constraint",
+                &["x", "y"],
+                &[2., 3.],
+                5.,
+                6.,
+            )
+            .unwrap();
+        // try to update an inequality with the update equality method
+        let res = problem.update_equality_constraint_bound("test_inequality_constraint", 15.);
+        println!("{:?}", res);
+        if let Err(ProblemError::InvalidEqualityConstraintBoundsUpdate) = res {
+            // This is expected
+        } else {
+            panic!("Missed bad bounds update");
+        }
+
+        problem
+            .add_new_equality_constraint_by_id(
+                "test_equality_constraint",
+                &["x", "y"],
+                &[2., 3.],
+                15.,
+            )
+            .unwrap();
+        // Try to update an equality with the inequality constraint bounds
+        let res =
+            problem.update_inequality_constraint_bounds("test_equality_constraint", 250., 300.);
+        if let Err(ProblemError::InvalidInequalityConstraintBoundsUpdate) = res {
+            // This is expected
+        } else {
+            panic!("Missed bad bounds update");
+        }
+
+        // Try updating inequality bounds with bad bounds
+        let res = problem.update_inequality_constraint_bounds("test_equality_constraint", 5., 4.);
+        if let Err(ProblemError::InvalidConstraintBounds) = res {
+            // Expected
+        } else {
+            panic!("Missed bad bounds update");
+        }
+    }
+
+    #[test]
+    fn delete_variable() {
+        let mut problem = get_test_problem();
+
+        // Remove y
+        problem.remove_variable("y").unwrap();
+        // Check that the variable is no longer in variable
+        assert!(problem.variables.get("y").is_none());
+
+        // Check that the variable isn't in the constraints
+        if let Some(cons) = problem.constraints.get("test_equality_constraint") {
+            match *(cons.read().unwrap()) {
+                Constraint::Equality { ref terms, .. } => {
+                    assert_eq!(terms.len(), 1);
+                    for t in terms {
+                        if t.variable.clone().read().unwrap().id == "y" {
+                            panic!("Variable not removed from constraint")
+                        }
+                    }
+                }
+                Constraint::Inequality { .. } => {
+                    panic!("Incorrect constraint found");
+                }
+            }
+        }
+
+        if let Some(cons) = problem.constraints.get("test_inequality_constraint") {
+            match *(cons.read().unwrap()) {
+                Constraint::Inequality { ref terms, .. } => {
+                    assert_eq!(terms.len(), 1);
+                    for t in terms {
+                        if t.variable.clone().read().unwrap().id == "y" {
+                            panic!("Variable not removed from constraint")
+                        }
+                    }
+                }
+                Constraint::Equality { .. } => {
+                    panic!("Incorrect constraint found");
+                }
+            }
+        }
+
+        // Check that the objective is empty
+        assert_eq!(problem.objective.terms.len(), 0);
+    }
+
+    #[test]
+    fn remove_constraint() {
+        let mut problem = get_test_problem();
+
+        assert_eq!(problem.constraints.len(), 2);
+
+        problem.remove_constraint("test_equality_constraint");
+        assert_eq!(problem.constraints.len(), 1);
+        assert!(problem
+            .constraints
+            .get("ttest_equality_constraint")
+            .is_none());
+    }
+
+    #[test]
+    fn remove_all_objective_terms() {
+        let mut problem = get_test_problem();
+        assert_eq!(problem.objective.terms.len(), 1);
+        problem.remove_all_objective_terms();
+        assert_eq!(problem.objective.terms.len(), 0);
+    }
+
+    #[test]
+    fn check_problem() {
+        let mut problem = get_test_problem();
+        assert!(!problem.has_integer_variables());
+        assert!(!problem.has_quadratic_objective_terms());
+        assert_eq!(problem.problem_type, ProblemType::LinearContinuous);
+
+        problem
+            .add_new_variable("z", None, VariableType::Integer, 64., 100.)
+            .unwrap();
+        assert!(problem.has_integer_variables());
+        assert!(!problem.has_quadratic_objective_terms());
+        assert_eq!(problem.problem_type, ProblemType::LinearMixedInteger);
+
+        problem
+            .add_new_quadratic_objective_term_by_id("x", "y", 5.)
+            .unwrap();
+        assert!(problem.has_integer_variables());
+        assert!(problem.has_quadratic_objective_terms());
+        assert_eq!(problem.problem_type, ProblemType::QuadraticMixedInteger);
+
+        // Check that the removal of the z variable changes the type
+        problem.remove_variable("z").unwrap();
+        assert!(!problem.has_integer_variables());
+        assert!(problem.has_quadratic_objective_terms());
+        assert_eq!(problem.problem_type, ProblemType::QuadraticContinuous);
+
+        // Check that clearing the objective set the problem type correctly
+        problem.remove_all_objective_terms();
+        assert!(!problem.has_integer_variables());
+        assert!(!problem.has_quadratic_objective_terms());
+        assert_eq!(problem.problem_type, ProblemType::LinearContinuous);
+    }
+
+    fn get_test_problem() -> Problem {
+        let mut problem = Problem::new(ObjectiveSense::Maximize);
+        problem
+            .add_new_variable("x", None, VariableType::Continuous, 64., 100.)
+            .unwrap();
+        problem
+            .add_new_variable("y", None, VariableType::Continuous, 64., 100.)
+            .unwrap();
+
+        problem
+            .add_new_equality_constraint_by_id(
+                "test_equality_constraint",
+                &["x", "y"],
+                &[4., 5.],
+                5.,
+            )
+            .unwrap();
+        problem
+            .add_new_inequality_constraint_by_id(
+                "test_inequality_constraint",
+                &["x", "y"],
+                &[2., 5.],
+                1.,
+                10.,
+            )
+            .unwrap();
+        problem
+            .add_new_linear_objective_term_by_id("y", 12.)
+            .unwrap();
+        problem
     }
 }

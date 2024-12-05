@@ -131,7 +131,7 @@ mod tests {
     use std::collections::VecDeque;
 
     #[test]
-    fn test_single_gene() {
+    fn single_gene() {
         let mut lexer = Lexer::new("Rv0023");
         let mut tokens = match lexer.scan_tokens() {
             Ok(t) => t,
@@ -145,7 +145,7 @@ mod tests {
     }
 
     #[test]
-    fn test_grouping() {
+    fn grouping() {
         let mut lexer = Lexer::new("(Rv0023 or Rv0123)");
         let mut tokens = match lexer.scan_tokens() {
             Ok(t) => t,

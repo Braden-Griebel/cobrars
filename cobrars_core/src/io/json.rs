@@ -299,7 +299,7 @@ mod json_tests {
     use std::path::PathBuf;
 
     #[test]
-    fn test_json_metabolite() {
+    fn json_metabolite() {
         let data = r#"{
 "id":"glc__D_e",
 "name":"D-Glucose",
@@ -360,7 +360,7 @@ mod json_tests {
     }
 
     #[test]
-    fn test_json_reaction() {
+    fn json_reaction() {
         let data = r#"{
 "id":"PFK",
 "name":"Phosphofructokinase",
@@ -418,7 +418,7 @@ mod json_tests {
     }
 
     #[test]
-    fn test_json_gene() {
+    fn json_gene() {
         let data = r#"
         {
 "id":"b1241",
@@ -466,7 +466,7 @@ mod json_tests {
     }
 
     #[test]
-    fn test_json_model() {
+    fn json_model() {
         let data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("test_data")
             .join("test_models")
@@ -519,7 +519,7 @@ mod model_tests {
     use std::path::PathBuf;
 
     #[test]
-    fn test_gene_conversion() {
+    fn gene_conversion() {
         let data = r#"
         {
 "id":"b1241",
@@ -568,7 +568,7 @@ mod model_tests {
     }
 
     #[test]
-    fn test_metabolite() {
+    fn metabolite() {
         let data = r#"{
 "id":"glc__D_e",
 "name":"D-Glucose",
@@ -630,7 +630,7 @@ mod model_tests {
     }
 
     #[test]
-    fn test_json_conversion() {
+    fn json_conversion() {
         let this_file = file!();
         let data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("test_data")
@@ -711,7 +711,7 @@ mod model_tests {
     }
 
     #[test]
-    fn test_read_json() {
+    fn read_json() {
         let data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("test_data")
             .join("test_models")
@@ -800,7 +800,7 @@ mod model_tests {
     }
 
     #[test]
-    fn test_to_json() {
+    fn to_json() {
         // Read in the JSON model
         let data_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("test_data")

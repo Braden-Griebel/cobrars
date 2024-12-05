@@ -229,7 +229,7 @@ mod tests {
     use crate::io::gpr_parse::ParseError;
 
     #[test]
-    fn test_single_gene_parse() {
+    fn single_gene_parse() {
         let mut lexer = Lexer::new("Rv1304");
         let token_vec: Vec<Token> = lexer.lex().unwrap();
         let mut gene_map = IndexMap::new();
@@ -248,7 +248,7 @@ mod tests {
     }
 
     #[test]
-    fn test_and_parse() {
+    fn and_parse() {
         let mut lexer = Lexer::new("Rv1304 and Rv0023");
         let token_vec: Vec<Token> = lexer.lex().unwrap();
         let mut gene_map = IndexMap::new();
@@ -292,7 +292,7 @@ mod tests {
     }
 
     #[test]
-    fn test_or_parse() {
+    fn or_parse() {
         let mut lexer = Lexer::new("Rv1304 or Rv0023");
         let token_vec: Vec<Token> = lexer.lex().unwrap();
         let mut gene_map = IndexMap::new();
@@ -336,7 +336,7 @@ mod tests {
     }
 
     #[test]
-    fn test_not_parse() {
+    fn not_parse() {
         let mut lexer = Lexer::new("not Rv0023");
         let token_vec: Vec<Token> = lexer.lex().unwrap();
         let mut gene_map = IndexMap::new();
@@ -365,7 +365,7 @@ mod tests {
     }
 
     #[test]
-    fn test_grouping_parse() {
+    fn grouping_parse() {
         let mut lexer = Lexer::new("(Rv3141 or Rv0023) and Rv018");
         let token_vec: Vec<Token> = lexer.lex().unwrap();
         let mut gene_map = IndexMap::new();
@@ -426,7 +426,7 @@ mod tests {
     }
 
     #[test]
-    fn test_repeated_binary_parse() {
+    fn repeated_binary_parse() {
         let mut lexer = Lexer::new("Rv0001 and Rv0002 and Rv0003");
         let token_vec: Vec<Token> = lexer.lex().unwrap();
         let mut gene_map = IndexMap::new();
