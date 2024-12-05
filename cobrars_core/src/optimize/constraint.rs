@@ -1,4 +1,6 @@
 //! Provides struct for representing a constraint in an optimization problem
+
+use std::env::var;
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, RwLock};
 
@@ -125,6 +127,36 @@ impl Constraint {
     pub fn wrap(self)-> Arc<RwLock<Self>>{
         Arc::new(RwLock::new(self))
     }
+    
+    /// Get a vec of variables in the constraint
+    pub(crate) fn get_variables(&self) -> Vec<Arc<RwLock<Variable>>> {
+        let mut variables = Vec::new();
+        match self {
+            Constraint::Equality { terms, .. } => {
+                for term in terms {
+                    variables.push(term.variable.clone());
+                }
+            }
+            Constraint::Inequality { terms, .. } => {
+                for term in terms {
+                    variables.push(term.variable.clone());
+                }
+            }
+        }
+        variables
+    }
+    
+    /// Remove any terms in the constraint which includes a given variable (passed by id)
+    pub fn remove_variable(&mut self, variable_id: &str){
+        match self {
+            Constraint::Equality { terms, .. } | Constraint::Inequality {terms, ..}=> {
+                *terms = terms.drain(..).filter(|t| {
+                    t.variable.read().unwrap().id != variable_id
+                }).collect()
+            }
+        }
+    }
+    
 
     /// Take a slice of variable references, and a slice of coefficients and zip
     /// them together into a vec of ConstraintTerms

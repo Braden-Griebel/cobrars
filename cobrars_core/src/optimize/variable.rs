@@ -7,7 +7,7 @@ use derive_builder::Builder;
 use crate::configuration::CONFIGURATION;
 
 /// Represents a bounded variable in an optimization problem
-#[derive(Builder, Debug, Clone)]
+#[derive(Builder, Debug, Clone, PartialEq)]
 pub struct Variable {
     /// ID used to identify the variable
     #[builder(setter(into))]
