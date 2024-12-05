@@ -677,10 +677,10 @@ mod tests {
             .unwrap();
 
         // Add an equality constraint
-        problem.add_new_equality_constraint_by_id("test_constraint", &["x", "y"], &[2., 3.], 200.).unwrap();
+        problem.add_new_equality_constraint_by_id("test_equality_constraint", &["x", "y"], &[2., 3.], 200.).unwrap();
 
         // Check that the constraint was correctly added
-        let cons = problem.constraints.get("test_constraint").unwrap();
+        let cons = problem.constraints.get("test_equality_constraint").unwrap();
         match *(cons.clone().read().unwrap()) {
             Constraint::Equality {equals, ..} => {
                 assert!((equals-200.).abs()<1e-25)
@@ -689,10 +689,10 @@ mod tests {
         }
         
         // Add an inequality constraint
-        problem.add_new_inequality_constraint_by_id("test_constraint", &["x", "y"], &[2., 3.], 100., 200.).unwrap();
+        problem.add_new_inequality_constraint_by_id("test_inequality_constraint", &["x", "y"], &[2., 3.], 100., 200.).unwrap();
 
         // Check that the constraint was correctly added
-        let cons = problem.constraints.get("test_constraint").unwrap();
+        let cons = problem.constraints.get("test_inequality_constraint").unwrap();
         match *(cons.clone().read().unwrap()) {
             Constraint::Inequality {lower_bound, upper_bound, ..} => {
                 assert!((lower_bound-100.).abs()<1e-25);
