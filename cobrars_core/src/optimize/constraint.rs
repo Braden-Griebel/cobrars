@@ -2,7 +2,6 @@
 
 use std::env::var;
 use std::fmt::{Display, Formatter};
-use std::sync::{Arc, RwLock};
 
 use crate::optimize::variable::{Variable, VariableBuilder};
 
@@ -45,27 +44,12 @@ impl Constraint {
     /// # Examples
     /// ```rust
     /// use cobrars_core::optimize::constraint::Constraint;
-    /// use cobrars_core::optimize::variable::VariableBuilder;
-    /// let x = VariableBuilder::default()
-    ///     .id("x")
-    ///     .lower_bound(0.0)
-    ///     .upper_bound(20.)
-    ///     .build()
-    ///     .unwrap()
-    ///     .wrap(); // This wraps the variable in a Arc<RwLock<>>
-    /// let y = VariableBuilder::default()
-    ///     .id("y")
-    ///     .lower_bound(3.0)
-    ///     .upper_bound(7.0)
-    ///     .build()
-    ///     .unwrap()
-    ///     .wrap(); // This wraps the variable in an Arc<RwLock<>>
     /// // Create a constraint representing 3*x + 2*y = 6
-    /// let new_constraint = Constraint::new_equality("Example Equality Constraint", &[x,y], &[3.0,2.0], 6.);
+    /// let new_constraint = Constraint::new_equality("Example Equality Constraint", &["x","y"], &[3.0,2.0], 6.);
     /// ```
     pub fn new_equality(
         id: &str,
-        variables: &[Arc<RwLock<Variable>>],
+        variables: &[&str],
         coefficients: &[f64],
         equals: f64,
     ) -> Self {
@@ -90,27 +74,12 @@ impl Constraint {
     /// # Examples
     /// ```rust
     /// use cobrars_core::optimize::constraint::Constraint;
-    /// use cobrars_core::optimize::variable::VariableBuilder;
-    /// let x = VariableBuilder::default()
-    ///     .id("x")
-    ///     .lower_bound(0.0)
-    ///     .upper_bound(20.)
-    ///     .build()
-    ///     .unwrap()
-    ///     .wrap(); // This wraps the variable in a Arc<RwLock<>>
-    /// let y = VariableBuilder::default()
-    ///     .id("y")
-    ///     .lower_bound(3.0)
-    ///     .upper_bound(7.0)
-    ///     .build()
-    ///     .unwrap()
-    ///     .wrap(); // This wraps the variable in a Arc<RwLock<>>
     /// // represents the inequality 2 <= 3*x + 2*y <= 6
-    /// let new_constraint = Constraint::new_inequality("Example Inequality Account", &[x,y], &[3.0,2.0], 2., 6.);
+    /// let new_constraint = Constraint::new_inequality("Example Inequality Account", &["x","y"], &[3.0,2.0], 2., 6.);
     /// ```
     pub fn new_inequality(
         id: &str,
-        variables: &[Arc<RwLock<Variable>>],
+        variables: &[&str],
         coefficients: &[f64],
         lower_bound: f64,
         upper_bound: f64,
@@ -123,16 +92,8 @@ impl Constraint {
         }
     }
 
-    /// Update the equals for a equals constraint
-    //pub fn update_equals(&mut self) {}
-
-    /// Wrap the constraint in an Arc<RwLock<>>
-    pub fn wrap(self) -> Arc<RwLock<Self>> {
-        Arc::new(RwLock::new(self))
-    }
-
     /// Get a vec of variables in the constraint
-    pub(crate) fn get_variables(&self) -> Vec<Arc<RwLock<Variable>>> {
+    pub(crate) fn get_variables(&self) -> Vec<String> {
         let mut variables = Vec::new();
         match self {
             Constraint::Equality { terms, .. } => {
@@ -155,7 +116,7 @@ impl Constraint {
             Constraint::Equality { terms, .. } | Constraint::Inequality { terms, .. } => {
                 *terms = terms
                     .drain(..)
-                    .filter(|t| t.variable.read().unwrap().id != variable_id)
+                    .filter(|t| t.variable != variable_id)
                     .collect()
             }
         }
@@ -164,14 +125,14 @@ impl Constraint {
     /// Take a slice of variable references, and a slice of coefficients and zip
     /// them together into a vec of ConstraintTerms
     fn zip_into_terms(
-        variables: &[Arc<RwLock<Variable>>],
+        variables: &[&str],
         coefficients: &[f64],
     ) -> Vec<ConstraintTerm> {
         variables
             .iter()
             .zip(coefficients)
             .map(|(var, coef)| ConstraintTerm {
-                variable: var.clone(),
+                variable: var.to_string(),
                 coefficient: coef.clone(),
             })
             .collect()
@@ -229,8 +190,8 @@ impl Display for Constraint {
 /// represents the multiplication of the `variable` by the `coefficient`
 #[derive(Debug, Clone)]
 pub struct ConstraintTerm {
-    /// A reference to a [`Variable`]
-    pub(super) variable: Arc<RwLock<Variable>>,
+    /// The id of a [`Variable`]
+    pub(super) variable: String,
     /// The coefficient for the variable
     pub(super) coefficient: f64,
 }
@@ -241,7 +202,7 @@ impl Display for ConstraintTerm {
             f,
             "{}*{}",
             self.coefficient,
-            self.variable.read().unwrap().id
+            self.variable,
         )
     }
 }

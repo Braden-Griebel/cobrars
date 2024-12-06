@@ -7,8 +7,6 @@ use crate::optimize::problem::ProblemError::{
 use crate::optimize::solvers::Solver;
 use crate::optimize::variable::{Variable, VariableBuilder, VariableType};
 use indexmap::IndexMap;
-use nalgebra::DimAdd;
-use std::sync::{Arc, RwLock, RwLockReadGuard};
 use thiserror::Error;
 
 /// An optimization problem
@@ -17,9 +15,9 @@ pub struct Problem {
     /// Objective to optimize
     objective: Objective,
     /// Variables of the optimization problem
-    variables: IndexMap<String, Arc<RwLock<Variable>>>,
+    variables: IndexMap<String, Variable>,
     /// Constraints of the optimization problem
-    constraints: IndexMap<String, Arc<RwLock<Constraint>>>,
+    constraints: IndexMap<String, Constraint>,
     /// Current status of the optimization problem
     status: OptimizationStatus,
     /// Values of the optimized variables. Will be None before optimization,
@@ -69,18 +67,18 @@ impl Problem {
 
     // region Adding Variables
     /// Add a variable to the optimization problem
-    pub fn add_variable(&mut self, variable: Arc<RwLock<Variable>>) -> Result<(), ProblemError> {
+    pub fn add_variable(&mut self, mut variable: Variable) -> Result<(), ProblemError> {
         // Validate that the variable can in fact be added to the problem
-        self.validate_variable(variable.clone())?;
+        self.validate_variable(&variable)?;
         // Update the index of the variable to reflect the current variable count
-        variable.write().unwrap().index = self.num_variables;
+        variable.index = self.num_variables;
         // Update the total number of variables
         self.num_variables += 1;
         // Insert the variable into the variables IndexMap
-        let var_id = variable.read().unwrap().id.clone();
+        let var_id = variable.id.clone();
         self.variables.insert(var_id, variable.clone());
         // Update the type of the model if needed
-        match variable.read().unwrap().variable_type {
+        match variable.variable_type {
             VariableType::Continuous => {
                 // This will not change the type
             }
@@ -114,8 +112,7 @@ impl Problem {
                 .lower_bound(lower_bound)
                 .upper_bound(upper_bound)
                 .build()
-                .unwrap()
-                .wrap(),
+                .unwrap(),
             None => VariableBuilder::default()
                 .id(id)
                 .variable_type(variable_type)
@@ -123,7 +120,6 @@ impl Problem {
                 .upper_bound(upper_bound)
                 .build()
                 .unwrap()
-                .wrap(),
         };
         self.add_variable(new_var.clone())
     }
@@ -133,12 +129,12 @@ impl Problem {
     /// Add a constraint to the problem
     pub fn add_constraint(
         &mut self,
-        constraint: Arc<RwLock<Constraint>>,
+        constraint: Constraint,
     ) -> Result<(), ProblemError> {
-        self.validate_constraint(constraint.clone())?;
+        self.validate_constraint(&constraint)?;
         self.num_constraints += 1;
         self.constraints
-            .insert(constraint.read().unwrap().get_id(), constraint.clone());
+            .insert(constraint.get_id(), constraint.clone());
         Ok(())
     }
 
@@ -146,58 +142,26 @@ impl Problem {
     pub fn add_new_equality_constraint(
         &mut self,
         id: &str,
-        variables: &[Arc<RwLock<Variable>>],
-        coefficients: &[f64],
-        equals: f64,
-    ) -> Result<(), ProblemError> {
-        let new_cons = Constraint::new_equality(id, variables, coefficients, equals).wrap();
-        self.add_constraint(new_cons)
-    }
-
-    /// Create a new equality constraint using variable ids rather than variables references, and add it to the model
-    pub fn add_new_equality_constraint_by_id(
-        &mut self,
-        id: &str,
         variables: &[&str],
         coefficients: &[f64],
         equals: f64,
     ) -> Result<(), ProblemError> {
-        let variables = variables
-            .iter()
-            .map(|v_id| self.variables.get(*v_id).unwrap().clone())
-            .collect::<Vec<_>>();
-        self.add_new_equality_constraint(id, &variables, coefficients, equals)
+        let new_cons = Constraint::new_equality(id, variables, coefficients, equals);
+        self.add_constraint(new_cons)
     }
 
     /// Create a new inequality constraint and add it to the model
     pub fn add_new_inequality_constraint(
         &mut self,
         id: &str,
-        variables: &[Arc<RwLock<Variable>>],
-        coefficients: &[f64],
-        lower_bound: f64,
-        upper_bound: f64,
-    ) -> Result<(), ProblemError> {
-        let new_cons =
-            Constraint::new_inequality(id, variables, coefficients, lower_bound, upper_bound)
-                .wrap();
-        self.add_constraint(new_cons)
-    }
-
-    /// Create a new inequality constraint using variable ids rather than variable references, and add it to the model
-    pub fn add_new_inequality_constraint_by_id(
-        &mut self,
-        id: &str,
         variables: &[&str],
         coefficients: &[f64],
         lower_bound: f64,
         upper_bound: f64,
     ) -> Result<(), ProblemError> {
-        let variables = variables
-            .iter()
-            .map(|v_id| self.variables.get(*v_id).unwrap().clone())
-            .collect::<Vec<_>>();
-        self.add_new_inequality_constraint(id, &variables, coefficients, lower_bound, upper_bound)
+        let new_cons =
+            Constraint::new_inequality(id, variables, coefficients, lower_bound, upper_bound);
+        self.add_constraint(new_cons)
     }
 
     // endregion Adding Constraints
@@ -232,53 +196,22 @@ impl Problem {
     /// Add a new linear term to the objective
     pub fn add_new_linear_objective_term(
         &mut self,
-        variable: Arc<RwLock<Variable>>,
+        variable: &str,
         coefficient: f64,
     ) -> Result<(), ProblemError> {
         let objective_term = ObjectiveTerm::new_linear(variable, coefficient);
         self.add_objective_term(objective_term)
     }
 
-    /// Add a new linear term to the objective using the variable id
-    pub fn add_new_linear_objective_term_by_id(
-        &mut self,
-        variable_id: &str,
-        coefficient: f64,
-    ) -> Result<(), ProblemError> {
-        let variable = match self.variables.get(variable_id) {
-            Some(variable) => variable.clone(),
-            None => return Err(NonExistentVariablesInObjective),
-        };
-        self.add_new_linear_objective_term(variable, coefficient)
-    }
-
     /// Add a new quadratic term to the objective
     pub fn add_new_quadratic_objective_term(
-        &mut self,
-        variable1: Arc<RwLock<Variable>>,
-        variable2: Arc<RwLock<Variable>>,
-        coefficient: f64,
-    ) -> Result<(), ProblemError> {
-        let objective_term = ObjectiveTerm::new_quadratic(variable1, variable2, coefficient);
-        self.add_objective_term(objective_term)
-    }
-
-    /// Add a new quadratic term to the objective using the variable ids
-    pub fn add_new_quadratic_objective_term_by_id(
         &mut self,
         variable1: &str,
         variable2: &str,
         coefficient: f64,
     ) -> Result<(), ProblemError> {
-        let variable1 = match self.variables.get(variable1) {
-            Some(variable) => variable.clone(),
-            None => return Err(NonExistentVariablesInObjective),
-        };
-        let variable2 = match self.variables.get(variable2) {
-            Some(variable) => variable.clone(),
-            None => return Err(NonExistentVariablesInObjective),
-        };
-        self.add_new_quadratic_objective_term(variable1, variable2, coefficient)
+        let objective_term = ObjectiveTerm::new_quadratic(variable1, variable2, coefficient);
+        self.add_objective_term(objective_term)
     }
 
     // endregion Adding Objective Terms
@@ -294,10 +227,10 @@ impl Problem {
         if lower_bound > upper_bound {
             return Err(ProblemError::InvalidVariableBounds);
         }
-        match self.variables.get(id) {
+        match self.variables.get_mut(id) {
             Some(var) => {
-                var.write().unwrap().lower_bound = lower_bound;
-                var.write().unwrap().upper_bound = upper_bound;
+                var.lower_bound = lower_bound;
+                var.upper_bound = upper_bound;
             }
             None => return Err(NonExistentVariable),
         };
@@ -315,9 +248,9 @@ impl Problem {
     ) -> Result<(), ProblemError> {
         let cons = self
             .constraints
-            .get(constraint_id)
+            .get_mut(constraint_id)
             .ok_or(ProblemError::NonExistentConstraint)?;
-        match *(cons.write().unwrap()) {
+        match cons {
             Constraint::Equality { ref mut equals, .. } => {
                 *equals = new_equals;
             }
@@ -339,9 +272,9 @@ impl Problem {
         }
         let cons = self
             .constraints
-            .get(constraint_id)
+            .get_mut(constraint_id)
             .ok_or(ProblemError::NonExistentConstraint)?;
-        match (*cons.write().unwrap()) {
+        match cons {
             Constraint::Equality { .. } => {
                 return Err(ProblemError::InvalidInequalityConstraintBoundsUpdate);
             }
@@ -366,8 +299,8 @@ impl Problem {
         // Start by removing any terms in the objective including this variable
         self.objective.remove_terms_with_variable(variable_id);
         // Now remove any terms from constraints which include the variable
-        self.constraints.iter().for_each(|(_, cons)| {
-            cons.write().unwrap().remove_variable(variable_id);
+        self.constraints.iter_mut().for_each(|(_, cons)| {
+            cons.remove_variable(variable_id);
         });
         // Finally the variable can be dropped from the model
         match self.variables.get(variable_id) {
@@ -414,14 +347,14 @@ impl Problem {
 
     // region Validation Functions
     /// Check that a variable to be added is valid to add to this problem
-    fn validate_variable(&self, variable: Arc<RwLock<Variable>>) -> Result<(), ProblemError> {
+    fn validate_variable(&self, variable: &Variable) -> Result<(), ProblemError> {
         // Check if there is already a variable with this id
-        if self.variables.get(&variable.read().unwrap().id).is_some() {
+        if self.variables.get(&variable.id).is_some() {
             return Err(ProblemError::VariableIdAlreadyExists);
         };
         // Check if the variable bounds are valid
-        let lb = variable.read().unwrap().lower_bound;
-        let ub = variable.read().unwrap().upper_bound;
+        let lb = variable.lower_bound;
+        let ub = variable.upper_bound;
         if lb > ub {
             return Err(ProblemError::InvalidVariableBounds);
         }
@@ -429,17 +362,17 @@ impl Problem {
     }
 
     /// Check that a constraint to be added is valid to add to this Problem
-    fn validate_constraint(&self, constraint: Arc<RwLock<Constraint>>) -> Result<(), ProblemError> {
+    fn validate_constraint(&self, constraint: &Constraint) -> Result<(), ProblemError> {
         // Check that a variable with the same id doesn't already exist
         if self
             .constraints
-            .get(&constraint.read().unwrap().get_id())
+            .get(&constraint.get_id())
             .is_some()
         {
             return Err(ProblemError::ConstraintAlreadyExists);
         }
         // Check that for inequality constraints the bounds make sense
-        match *constraint.read().unwrap() {
+        match constraint {
             Constraint::Equality { .. } => {}
             Constraint::Inequality {
                 lower_bound,
@@ -452,9 +385,9 @@ impl Problem {
             }
         }
         // Check that the variables in this constraint are in the model
-        for var in constraint.read().unwrap().get_variables() {
-            if let Some(problem_var) = self.variables.get(&var.read().unwrap().id) {
-                if !Arc::ptr_eq(&var, problem_var) {
+        for var in constraint.get_variables() {
+            if let Some(problem_var) = self.variables.get(&var) {
+                if !(var == problem_var.id) {
                     return Err(ProblemError::NonExistentVariablesInConstraint);
                 }
             } else {
@@ -470,8 +403,8 @@ impl Problem {
         // make sure the variables in the objective are in the model
         match objective_term {
             ObjectiveTerm::Quadratic { var1, var2, .. } => {
-                if let Some(problem_var1) = self.variables.get(&var1.read().unwrap().id) {
-                    if !Arc::ptr_eq(var1, problem_var1) {
+                if let Some(problem_var1) = self.variables.get(var1) {
+                    if !(*var1 == problem_var1.id) {
                         return Err(ProblemError::NonExistentVariablesInObjective);
                     }
                 } else {
@@ -479,8 +412,8 @@ impl Problem {
                 }
             }
             ObjectiveTerm::Linear { var, .. } => {
-                if let Some(problem_var) = self.variables.get(&var.read().unwrap().id) {
-                    if !Arc::ptr_eq(var, problem_var) {
+                if let Some(problem_var) = self.variables.get(var) {
+                    if !(*var == problem_var.id) {
                         return Err(ProblemError::NonExistentVariablesInObjective);
                     }
                 } else {
@@ -502,10 +435,10 @@ impl Problem {
     fn fix_variable_indices_and_count(&mut self) {
         let num_variables = self.variables.len();
         self.variables
-            .iter()
+            .iter_mut()
             .zip(0..num_variables)
             .for_each(|((_, var), ind)| {
-                var.write().unwrap().index = ind;
+                var.index = ind;
             });
         self.num_variables = num_variables;
     }
@@ -540,7 +473,7 @@ impl Problem {
     */
     pub fn has_integer_variables(&self) -> bool {
         for (_, var) in &self.variables {
-            if var.read().unwrap().variable_type == VariableType::Integer {
+            if var.variable_type == VariableType::Integer {
                 return true;
             }
         }
@@ -672,14 +605,14 @@ mod tests {
             .unwrap();
         // Check that the variable is in fact added
         if let Some(var) = problem.variables.get("x") {
-            assert_eq!(var.read().unwrap().variable_type, VariableType::Continuous);
-            assert_eq!(var.read().unwrap().index, 0);
+            assert_eq!(var.variable_type, VariableType::Continuous);
+            assert_eq!(var.index, 0);
             assert!(
-                (var.read().unwrap().lower_bound - 64.0).abs() < 1e-25,
+                (var.lower_bound - 64.0).abs() < 1e-25,
                 "Variable added with incorrect lower bound"
             );
             assert!(
-                (var.read().unwrap().lower_bound - 64.0).abs() < 1e-25,
+                (var.lower_bound - 64.0).abs() < 1e-25,
                 "Variable added with incorrect upper bound"
             );
         } else {
@@ -693,14 +626,14 @@ mod tests {
             .add_new_variable("y", None, VariableType::Integer, 64., 100.)
             .unwrap();
         if let Some(var) = problem.variables.get("y") {
-            assert_eq!(var.read().unwrap().variable_type, VariableType::Integer);
-            assert_eq!(var.read().unwrap().index, 1);
+            assert_eq!(var.variable_type, VariableType::Integer);
+            assert_eq!(var.index, 1);
             assert!(
-                (var.read().unwrap().lower_bound - 64.0).abs() < 1e-25,
+                (var.lower_bound - 64.0).abs() < 1e-25,
                 "Variable added with incorrect lower bound"
             );
             assert!(
-                (var.read().unwrap().lower_bound - 64.0).abs() < 1e-25,
+                (var.lower_bound - 64.0).abs() < 1e-25,
                 "Variable added with incorrect upper bound"
             );
         } else {
@@ -737,7 +670,7 @@ mod tests {
 
         // Add an equality constraint
         problem
-            .add_new_equality_constraint_by_id(
+            .add_new_equality_constraint(
                 "test_equality_constraint",
                 &["x", "y"],
                 &[2., 3.],
@@ -747,7 +680,7 @@ mod tests {
 
         // Check that the constraint was correctly added
         let cons = problem.constraints.get("test_equality_constraint").unwrap();
-        match *(cons.clone().read().unwrap()) {
+        match cons.clone() {
             Constraint::Equality { equals, .. } => {
                 assert!((equals - 200.).abs() < 1e-25)
             }
@@ -756,7 +689,7 @@ mod tests {
 
         // Add an inequality constraint
         problem
-            .add_new_inequality_constraint_by_id(
+            .add_new_inequality_constraint(
                 "test_inequality_constraint",
                 &["x", "y"],
                 &[2., 3.],
@@ -770,7 +703,7 @@ mod tests {
             .constraints
             .get("test_inequality_constraint")
             .unwrap();
-        match *(cons.clone().read().unwrap()) {
+        match cons {
             Constraint::Inequality {
                 lower_bound,
                 upper_bound,
@@ -797,7 +730,7 @@ mod tests {
 
         // Add an equality constraint
         if let Err(ProblemError::InvalidConstraintBounds) = problem
-            .add_new_inequality_constraint_by_id(
+            .add_new_inequality_constraint(
                 "bad_constraint",
                 &["x", "y"],
                 &[2., 3.],
@@ -822,7 +755,7 @@ mod tests {
 
         // add a linear term to the objective
         problem
-            .add_new_linear_objective_term_by_id("x", 26.)
+            .add_new_linear_objective_term("x", 26.)
             .unwrap();
         // check that the problem is still a linear continuous problem
         assert_eq!(problem.problem_type, ProblemType::LinearContinuous);
@@ -835,7 +768,7 @@ mod tests {
                 panic!("Incorrect objective term");
             }
             ObjectiveTerm::Linear { ref var, coef } => {
-                let v = var.read().unwrap();
+                let v = problem.variables.get(var).unwrap();
                 if v.id != "x"
                     || v.variable_type != VariableType::Continuous
                     || (v.lower_bound - 64.).abs() > 1e-25
@@ -849,7 +782,7 @@ mod tests {
 
         // Add a quadratic term to the objective
         problem
-            .add_new_quadratic_objective_term_by_id("x", "y", 2.)
+            .add_new_quadratic_objective_term("x", "y", 2.)
             .unwrap();
         // Check that the problem is now a quadratic continuous problem
         assert_eq!(problem.problem_type, ProblemType::QuadraticContinuous);
@@ -861,7 +794,7 @@ mod tests {
                 ref var2,
                 coef,
             } => {
-                let v1 = var1.read().unwrap();
+                let v1 = problem.variables.get(var1).unwrap();
                 if v1.id != "x"
                     || v1.variable_type != VariableType::Continuous
                     || (v1.lower_bound - 64.).abs() > 1e-25
@@ -870,7 +803,7 @@ mod tests {
                     panic!("Incorrect Variable in Objective")
                 }
 
-                let v2 = var2.read().unwrap();
+                let v2 = problem.variables.get(var2).unwrap();
                 if v2.id != "y"
                     || v2.variable_type != VariableType::Continuous
                     || (v2.lower_bound - 25.).abs() > 1e-25
@@ -904,7 +837,7 @@ mod tests {
             .add_new_variable("x", None, VariableType::Continuous, 64., 100.)
             .unwrap();
         if let Some(var) = problem.variables.get("x") {
-            let v = var.read().unwrap();
+            let v = var;
             if (v.lower_bound - 64.).abs() > 1e-25 {
                 panic!("Incorrect variable bounds");
             }
@@ -917,7 +850,7 @@ mod tests {
 
         problem.update_variable_bounds("x", 4., 5.).unwrap();
         if let Some(var) = problem.variables.get("x") {
-            let v = var.read().unwrap();
+            let v = var;
             if (v.lower_bound - 4.).abs() > 1e-25 {
                 panic!("Incorrect variable bounds");
             }
@@ -955,7 +888,7 @@ mod tests {
             .unwrap();
 
         problem
-            .add_new_equality_constraint_by_id(
+            .add_new_equality_constraint(
                 "test_equality_constraint",
                 &["x", "y"],
                 &[2., 3.],
@@ -968,7 +901,7 @@ mod tests {
             .unwrap();
 
         if let Some(cons) = problem.constraints.get("test_equality_constraint") {
-            match *(cons.read().unwrap()) {
+            match *(cons) {
                 Constraint::Equality { equals, .. } => {
                     if (equals - 100.).abs() > 1e-25 {
                         panic!("Incorrect constraint bounds")
@@ -982,7 +915,7 @@ mod tests {
 
         // Test inequality constraint update
         problem
-            .add_new_inequality_constraint_by_id(
+            .add_new_inequality_constraint(
                 "test_inequality_constraint",
                 &["x", "y"],
                 &[2., 3.],
@@ -996,7 +929,7 @@ mod tests {
             .unwrap();
 
         if let Some(cons) = problem.constraints.get("test_inequality_constraint") {
-            match *(cons.read().unwrap()) {
+            match *(cons) {
                 Constraint::Equality { .. } => {
                     panic!("Incorrect constraint")
                 }
@@ -1027,7 +960,7 @@ mod tests {
             .unwrap();
 
         problem
-            .add_new_inequality_constraint_by_id(
+            .add_new_inequality_constraint(
                 "test_inequality_constraint",
                 &["x", "y"],
                 &[2., 3.],
@@ -1045,7 +978,7 @@ mod tests {
         }
 
         problem
-            .add_new_equality_constraint_by_id(
+            .add_new_equality_constraint(
                 "test_equality_constraint",
                 &["x", "y"],
                 &[2., 3.],
@@ -1081,11 +1014,11 @@ mod tests {
 
         // Check that the variable isn't in the constraints
         if let Some(cons) = problem.constraints.get("test_equality_constraint") {
-            match *(cons.read().unwrap()) {
+            match *(cons) {
                 Constraint::Equality { ref terms, .. } => {
                     assert_eq!(terms.len(), 1);
                     for t in terms {
-                        if t.variable.clone().read().unwrap().id == "y" {
+                        if t.variable == "y" {
                             panic!("Variable not removed from constraint")
                         }
                     }
@@ -1097,11 +1030,11 @@ mod tests {
         }
 
         if let Some(cons) = problem.constraints.get("test_inequality_constraint") {
-            match *(cons.read().unwrap()) {
+            match *(cons) {
                 Constraint::Inequality { ref terms, .. } => {
                     assert_eq!(terms.len(), 1);
                     for t in terms {
-                        if t.variable.clone().read().unwrap().id == "y" {
+                        if t.variable == "y" {
                             panic!("Variable not removed from constraint")
                         }
                     }
@@ -1153,7 +1086,7 @@ mod tests {
         assert_eq!(problem.problem_type, ProblemType::LinearMixedInteger);
 
         problem
-            .add_new_quadratic_objective_term_by_id("x", "y", 5.)
+            .add_new_quadratic_objective_term("x", "y", 5.)
             .unwrap();
         assert!(problem.has_integer_variables());
         assert!(problem.has_quadratic_objective_terms());
@@ -1182,7 +1115,7 @@ mod tests {
             .unwrap();
 
         problem
-            .add_new_equality_constraint_by_id(
+            .add_new_equality_constraint(
                 "test_equality_constraint",
                 &["x", "y"],
                 &[4., 5.],
@@ -1190,7 +1123,7 @@ mod tests {
             )
             .unwrap();
         problem
-            .add_new_inequality_constraint_by_id(
+            .add_new_inequality_constraint(
                 "test_inequality_constraint",
                 &["x", "y"],
                 &[2., 5.],
@@ -1199,7 +1132,7 @@ mod tests {
             )
             .unwrap();
         problem
-            .add_new_linear_objective_term_by_id("y", 12.)
+            .add_new_linear_objective_term("y", 12.)
             .unwrap();
         problem
     }
