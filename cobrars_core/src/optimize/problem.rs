@@ -2,6 +2,7 @@
 use indexmap::IndexMap;
 use thiserror::Error;
 
+use super::OptimizationStatus;
 use crate::optimize::constraint::Constraint;
 use crate::optimize::objective::{Objective, ObjectiveSense, ObjectiveTerm};
 use crate::optimize::problem::ProblemError::{
@@ -9,7 +10,6 @@ use crate::optimize::problem::ProblemError::{
 };
 use crate::optimize::solvers::Solver;
 use crate::optimize::variable::{Variable, VariableBuilder, VariableType};
-use super::OptimizationStatus;
 
 /// An optimization problem
 #[derive(Debug, Clone)]
@@ -121,7 +121,7 @@ impl Problem {
                 .lower_bound(lower_bound)
                 .upper_bound(upper_bound)
                 .build()
-                .unwrap()
+                .unwrap(),
         };
         self.add_variable(new_var.clone())
     }
@@ -129,10 +129,7 @@ impl Problem {
 
     // region Adding Constraints
     /// Add a constraint to the problem
-    pub fn add_constraint(
-        &mut self,
-        constraint: Constraint,
-    ) -> Result<(), ProblemError> {
+    pub fn add_constraint(&mut self, constraint: Constraint) -> Result<(), ProblemError> {
         self.validate_constraint(&constraint)?;
         self.num_constraints += 1;
         self.constraints
@@ -366,11 +363,7 @@ impl Problem {
     /// Check that a constraint to be added is valid to add to this Problem
     fn validate_constraint(&self, constraint: &Constraint) -> Result<(), ProblemError> {
         // Check that a variable with the same id doesn't already exist
-        if self
-            .constraints
-            .get(&constraint.get_id())
-            .is_some()
-        {
+        if self.constraints.get(&constraint.get_id()).is_some() {
             return Err(ProblemError::ConstraintAlreadyExists);
         }
         // Check that for inequality constraints the bounds make sense
@@ -488,8 +481,6 @@ impl Problem {
 
     // endregion Check Problem
 }
-
-
 
 /// Types of optimization problems
 #[derive(Clone, Debug, PartialEq)]
@@ -639,12 +630,7 @@ mod tests {
 
         // Add an equality constraint
         problem
-            .add_new_equality_constraint(
-                "test_equality_constraint",
-                &["x", "y"],
-                &[2., 3.],
-                200.,
-            )
+            .add_new_equality_constraint("test_equality_constraint", &["x", "y"], &[2., 3.], 200.)
             .unwrap();
 
         // Check that the constraint was correctly added
@@ -698,15 +684,13 @@ mod tests {
             .unwrap();
 
         // Add an equality constraint
-        if let Err(ProblemError::InvalidConstraintBounds) = problem
-            .add_new_inequality_constraint(
-                "bad_constraint",
-                &["x", "y"],
-                &[2., 3.],
-                200.,
-                100.,
-            )
-        {
+        if let Err(ProblemError::InvalidConstraintBounds) = problem.add_new_inequality_constraint(
+            "bad_constraint",
+            &["x", "y"],
+            &[2., 3.],
+            200.,
+            100.,
+        ) {
         } else {
             panic!("Invalid constraint bounds not caught")
         }
@@ -723,9 +707,7 @@ mod tests {
             .unwrap();
 
         // add a linear term to the objective
-        problem
-            .add_new_linear_objective_term("x", 26.)
-            .unwrap();
+        problem.add_new_linear_objective_term("x", 26.).unwrap();
         // check that the problem is still a linear continuous problem
         assert_eq!(problem.problem_type, ProblemType::LinearContinuous);
         // Check that the objective is the right length
@@ -857,12 +839,7 @@ mod tests {
             .unwrap();
 
         problem
-            .add_new_equality_constraint(
-                "test_equality_constraint",
-                &["x", "y"],
-                &[2., 3.],
-                5.,
-            )
+            .add_new_equality_constraint("test_equality_constraint", &["x", "y"], &[2., 3.], 5.)
             .unwrap();
 
         problem
@@ -947,12 +924,7 @@ mod tests {
         }
 
         problem
-            .add_new_equality_constraint(
-                "test_equality_constraint",
-                &["x", "y"],
-                &[2., 3.],
-                15.,
-            )
+            .add_new_equality_constraint("test_equality_constraint", &["x", "y"], &[2., 3.], 15.)
             .unwrap();
         // Try to update an equality with the inequality constraint bounds
         let res =
@@ -1084,12 +1056,7 @@ mod tests {
             .unwrap();
 
         problem
-            .add_new_equality_constraint(
-                "test_equality_constraint",
-                &["x", "y"],
-                &[4., 5.],
-                5.,
-            )
+            .add_new_equality_constraint("test_equality_constraint", &["x", "y"], &[4., 5.], 5.)
             .unwrap();
         problem
             .add_new_inequality_constraint(
@@ -1100,9 +1067,7 @@ mod tests {
                 10.,
             )
             .unwrap();
-        problem
-            .add_new_linear_objective_term("y", 12.)
-            .unwrap();
+        problem.add_new_linear_objective_term("y", 12.).unwrap();
         problem
     }
 }

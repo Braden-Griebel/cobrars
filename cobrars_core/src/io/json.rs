@@ -186,16 +186,16 @@ impl Model {
                 None
             };
             let new_reaction = ReactionBuilder::default()
-                    .id(rxn.id.clone())
-                    .metabolites(rxn.metabolites)
-                    .name(rxn.name)
-                    .gpr(gpr)
-                    .lower_bound(rxn.lower_bound)
-                    .upper_bound(rxn.upper_bound)
-                    .subsystem(rxn.subsystem)
-                    .notes(rxn.notes.map(|v| v.to_string()))
-                    .annotation(rxn.annotation.map(|v| v.to_string()))
-                    .build()?;
+                .id(rxn.id.clone())
+                .metabolites(rxn.metabolites)
+                .name(rxn.name)
+                .gpr(gpr)
+                .lower_bound(rxn.lower_bound)
+                .upper_bound(rxn.upper_bound)
+                .subsystem(rxn.subsystem)
+                .notes(rxn.notes.map(|v| v.to_string()))
+                .annotation(rxn.annotation.map(|v| v.to_string()))
+                .build()?;
             reactions.insert(rxn.id.clone(), new_reaction);
             // Add the reaction to the objective function if desired
             if let Some(coef) = rxn.objective_coefficient {
@@ -214,11 +214,7 @@ impl Model {
         })
     }
     fn to_json(&self) -> Result<JsonModel, JsonError> {
-        let json_genes: Vec<JsonGene> = self
-            .genes
-            .iter()
-            .map(|(_, g)| g.clone().into())
-            .collect();
+        let json_genes: Vec<JsonGene> = self.genes.iter().map(|(_, g)| g.clone().into()).collect();
         let json_metabolites: Vec<JsonMetabolite> = self
             .metabolites
             .iter()
@@ -644,10 +640,7 @@ mod model_tests {
 
         // Tests for the reaction
         assert_eq!(reaction.id, "PFK");
-        assert_eq!(
-            reaction.name.clone().unwrap(),
-            "Phosphofructokinase"
-        );
+        assert_eq!(reaction.name.clone().unwrap(), "Phosphofructokinase");
         let mut expected_reactions: IndexMap<String, f64> = IndexMap::new();
         expected_reactions.insert("adp_c".to_string(), 1.0);
         expected_reactions.insert("atp_c".to_string(), -1.0);
@@ -721,10 +714,7 @@ mod model_tests {
 
         // Tests for the reaction
         assert_eq!(reaction.id, "PFK");
-        assert_eq!(
-            reaction.name.clone().unwrap(),
-            "Phosphofructokinase"
-        );
+        assert_eq!(reaction.name.clone().unwrap(), "Phosphofructokinase");
         let mut expected_reactions: IndexMap<String, f64> = IndexMap::new();
         expected_reactions.insert("adp_c".to_string(), 1.0);
         expected_reactions.insert("atp_c".to_string(), -1.0);

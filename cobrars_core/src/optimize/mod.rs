@@ -1,6 +1,5 @@
 //! Module for constructing and solving optimization problems
 
-
 pub mod constraint;
 pub mod objective;
 pub mod problem;

@@ -2,8 +2,8 @@
 
 use crate::io::gpr_parse::lexer::LexerError;
 use crate::io::gpr_parse::parser::ParseError;
-use crate::metabolic_model::gene::{Gene};
-use crate::metabolic_model::model::{Gpr};
+use crate::metabolic_model::gene::Gene;
+use crate::metabolic_model::model::Gpr;
 use indexmap::IndexMap;
 use std::sync::{Arc, RwLock};
 use thiserror::Error;
@@ -32,10 +32,7 @@ mod token;
 /// let mut gene_map = IndexMap::new();
 /// let gpr_tree = parse_gpr(gpr, &mut gene_map).unwrap();
 /// ```
-pub fn parse_gpr(
-    input: &str,
-    gene_map: &mut IndexMap<String, Gene>,
-) -> Result<Gpr, GprParseError> {
+pub fn parse_gpr(input: &str, gene_map: &mut IndexMap<String, Gene>) -> Result<Gpr, GprParseError> {
     // Start by creating a lexer
     let mut lexer = lexer::Lexer::new(input);
     // Convert the GPR string into tokens
@@ -74,33 +71,15 @@ mod tests {
         let mut gene_map: IndexMap<String, Gene> = IndexMap::new();
         gene_map.insert(
             "Rv0001".to_string(),
-            Gene::new(
-                "Rv0001".to_string(),
-                None,
-                GeneActivity::Active,
-                None,
-                None,
-            ),
+            Gene::new("Rv0001".to_string(), None, GeneActivity::Active, None, None),
         );
         gene_map.insert(
             "Rv0002".to_string(),
-            Gene::new(
-                "Rv0002".to_string(),
-                None,
-                GeneActivity::Active,
-                None,
-                None,
-            ),
+            Gene::new("Rv0002".to_string(), None, GeneActivity::Active, None, None),
         );
         gene_map.insert(
             "Rv0003".to_string(),
-            Gene::new(
-                "Rv0003".to_string(),
-                None,
-                GeneActivity::Active,
-                None,
-                None,
-            ),
+            Gene::new("Rv0003".to_string(), None, GeneActivity::Active, None, None),
         );
         let gpr_tree = parse_gpr(gpr, &mut gene_map).unwrap();
         match gpr_tree {

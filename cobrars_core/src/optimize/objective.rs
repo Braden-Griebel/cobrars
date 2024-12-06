@@ -48,12 +48,7 @@ impl Objective {
     }
 
     /// Add a new Quadratic term to the objective
-    pub fn add_quadratic_term(
-        &mut self,
-        variable1: &str,
-        variable2: &str,
-        coefficient: f64,
-    ) {
+    pub fn add_quadratic_term(&mut self, variable1: &str, variable2: &str, coefficient: f64) {
         self.terms.push(ObjectiveTerm::Quadratic {
             var1: variable1.to_string(),
             var2: variable2.to_string(),
@@ -103,18 +98,13 @@ impl Objective {
             .drain(..)
             .filter(|t| match t {
                 ObjectiveTerm::Linear { var, .. } => var != id,
-                ObjectiveTerm::Quadratic { var1, var2, .. } => {
-                    !((var1 == id) || (var2 == id))
-                }
+                ObjectiveTerm::Quadratic { var1, var2, .. } => !((var1 == id) || (var2 == id)),
             })
             .collect();
     }
 
     /// Zip together slice of variable references with coefficients to create linear terms
-    fn zip_linear_terms(
-        variables: &[&str],
-        coefficient: &[f64],
-    ) -> Vec<ObjectiveTerm> {
+    fn zip_linear_terms(variables: &[&str], coefficient: &[f64]) -> Vec<ObjectiveTerm> {
         variables
             .iter()
             .zip(coefficient)
@@ -171,17 +161,20 @@ pub enum ObjectiveTerm {
 
 impl ObjectiveTerm {
     /// Create a new quadratic objective term
-    pub fn new_quadratic(
-        var1: &str,
-        var2: &str,
-        coef: f64,
-    ) -> Self {
-        ObjectiveTerm::Quadratic { var1: var1.to_string(), var2: var2.to_string(), coef }
+    pub fn new_quadratic(var1: &str, var2: &str, coef: f64) -> Self {
+        ObjectiveTerm::Quadratic {
+            var1: var1.to_string(),
+            var2: var2.to_string(),
+            coef,
+        }
     }
 
     /// Create a new linear objective term
     pub fn new_linear(var: &str, coef: f64) -> Self {
-        ObjectiveTerm::Linear { var: var.to_string(), coef }
+        ObjectiveTerm::Linear {
+            var: var.to_string(),
+            coef,
+        }
     }
 }
 

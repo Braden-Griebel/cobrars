@@ -47,12 +47,7 @@ impl Constraint {
     /// // Create a constraint representing 3*x + 2*y = 6
     /// let new_constraint = Constraint::new_equality("Example Equality Constraint", &["x","y"], &[3.0,2.0], 6.);
     /// ```
-    pub fn new_equality(
-        id: &str,
-        variables: &[&str],
-        coefficients: &[f64],
-        equals: f64,
-    ) -> Self {
+    pub fn new_equality(id: &str, variables: &[&str], coefficients: &[f64], equals: f64) -> Self {
         Constraint::Equality {
             id: id.to_string(),
             terms: Constraint::zip_into_terms(variables, coefficients),
@@ -124,10 +119,7 @@ impl Constraint {
 
     /// Take a slice of variable references, and a slice of coefficients and zip
     /// them together into a vec of ConstraintTerms
-    fn zip_into_terms(
-        variables: &[&str],
-        coefficients: &[f64],
-    ) -> Vec<ConstraintTerm> {
+    fn zip_into_terms(variables: &[&str], coefficients: &[f64]) -> Vec<ConstraintTerm> {
         variables
             .iter()
             .zip(coefficients)
@@ -198,11 +190,6 @@ pub struct ConstraintTerm {
 
 impl Display for ConstraintTerm {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}*{}",
-            self.coefficient,
-            self.variable,
-        )
+        write!(f, "{}*{}", self.coefficient, self.variable,)
     }
 }
