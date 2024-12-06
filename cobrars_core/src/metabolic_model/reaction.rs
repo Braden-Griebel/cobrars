@@ -1,10 +1,9 @@
 //! This module provides a struct for representing reactions
-use super::gene::Gpr;
+use super::model::Gpr;
 use crate::configuration::CONFIGURATION;
 use crate::utils::hashing::hash_as_hex_string;
 use derive_builder::Builder;
 use indexmap::IndexMap;
-use std::sync::{Arc, RwLock};
 /// Represents a reaction in the metabolic model
 #[derive(Builder, Debug, Clone)]
 pub struct Reaction {
@@ -51,10 +50,5 @@ impl Reaction {
     /// The reverse id is "{reaction_id}_reverse_{hexidecimal hash of reaction_id}"
     pub fn get_reverse_id(&self) -> String {
         format!("{}_reverse_{}", &self.id, hash_as_hex_string(&self.id))
-    }
-
-    /// Wrap the reaction in an Arc<RwLock<>>
-    pub fn wrap(self) -> Arc<RwLock<Reaction>> {
-        Arc::new(RwLock::new(self))
     }
 }

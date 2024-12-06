@@ -2,13 +2,14 @@
 
 use crate::io::gpr_parse::lexer::LexerError;
 use crate::io::gpr_parse::parser::ParseError;
-use crate::metabolic_model::gene::{Gene, Gpr};
+use crate::metabolic_model::gene::{Gene};
+use crate::metabolic_model::model::{Gpr};
 use indexmap::IndexMap;
 use std::sync::{Arc, RwLock};
 use thiserror::Error;
 
 mod lexer;
-mod parser;
+pub mod parser;
 mod token;
 
 /// Parse a Gene Protein Reaction string into a GPR Tree
@@ -33,7 +34,7 @@ mod token;
 /// ```
 pub fn parse_gpr(
     input: &str,
-    gene_map: &mut IndexMap<String, Arc<RwLock<Gene>>>,
+    gene_map: &mut IndexMap<String, Gene>,
 ) -> Result<Gpr, GprParseError> {
     // Start by creating a lexer
     let mut lexer = lexer::Lexer::new(input);
@@ -62,51 +63,52 @@ pub enum GprParseError {
 #[cfg(test)]
 mod tests {
     use crate::io::gpr_parse::parse_gpr;
-    use crate::metabolic_model::gene::{Gene, GeneActivity, Gpr, GprOperation};
+    use crate::metabolic_model::gene::{Gene, GeneActivity};
+    use crate::metabolic_model::model::{Gpr, GprOperation};
     use indexmap::IndexMap;
     use std::sync::{Arc, RwLock};
 
     #[test]
     fn test_parse_gpr() {
         let gpr = "Rv0001 and (Rv0002 or Rv0003)";
-        let mut gene_map: IndexMap<String, Arc<RwLock<Gene>>> = IndexMap::new();
+        let mut gene_map: IndexMap<String, Gene> = IndexMap::new();
         gene_map.insert(
             "Rv0001".to_string(),
-            Arc::new(RwLock::new(Gene::new(
+            Gene::new(
                 "Rv0001".to_string(),
                 None,
                 GeneActivity::Active,
                 None,
                 None,
-            ))),
+            ),
         );
         gene_map.insert(
             "Rv0002".to_string(),
-            Arc::new(RwLock::new(Gene::new(
+            Gene::new(
                 "Rv0002".to_string(),
                 None,
                 GeneActivity::Active,
                 None,
                 None,
-            ))),
+            ),
         );
         gene_map.insert(
             "Rv0003".to_string(),
-            Arc::new(RwLock::new(Gene::new(
+            Gene::new(
                 "Rv0003".to_string(),
                 None,
                 GeneActivity::Active,
                 None,
                 None,
-            ))),
+            ),
         );
         let gpr_tree = parse_gpr(gpr, &mut gene_map).unwrap();
         match gpr_tree {
             Gpr::Operation(op) => match op {
                 GprOperation::And { left, right } => {
                     match *left {
-                        Gpr::Gene(g) => {
-                            if g.read().unwrap().id != "Rv0001" {
+                        Gpr::GeneNode(g) => {
+                            if g != "Rv0001" {
                                 panic!("Incorrect Parse")
                             }
                         }
@@ -115,16 +117,16 @@ mod tests {
                     match *right {
                         Gpr::Operation(GprOperation::Or { left, right }) => {
                             match *left {
-                                Gpr::Gene(g) => {
-                                    if g.read().unwrap().id != "Rv0002" {
+                                Gpr::GeneNode(g) => {
+                                    if g != "Rv0002" {
                                         panic!("Incorrect Parse")
                                     }
                                 }
                                 _ => panic!("Incorrect Parse"),
                             }
                             match *right {
-                                Gpr::Gene(g) => {
-                                    if g.read().unwrap().id != "Rv0003" {
+                                Gpr::GeneNode(g) => {
+                                    if g != "Rv0003" {
                                         panic!("Incorrect Parse")
                                     }
                                 }
@@ -138,7 +140,7 @@ mod tests {
                     panic!("Incorrect operation")
                 }
             },
-            Gpr::Gene(_) => {
+            Gpr::GeneNode(_) => {
                 panic!("Incorrect gpr parse")
             }
         }

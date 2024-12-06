@@ -1,13 +1,10 @@
 use crate::io::gpr_parse::token::Token;
-use crate::metabolic_model::gene::{
-    Gene, GeneActivity, Gpr, GprError, GprOperation, GprOperatorType,
-};
+use crate::metabolic_model::gene::{Gene, GeneActivity};
+use crate::metabolic_model::model::{Gpr, GprError, GprOperation, GprOperatorType};
 
 use std::io::BufRead;
-use std::sync::{Arc, RwLock};
 
 use indexmap::IndexMap;
-use serde::Deserialize;
 use thiserror::Error;
 /*
 GPR Grammar:
@@ -26,15 +23,12 @@ pub struct GPRParser<'gm> {
     /// Current token being processed
     current: usize,
     /// Map containing the Genes
-    pub(crate) gene_map: &'gm mut IndexMap<String, Arc<RwLock<Gene>>>,
+    pub(crate) gene_map: &'gm mut IndexMap<String, Gene>,
 }
 
 impl<'gm> GPRParser<'gm> {
     /// Create a new GPRParser
-    pub fn new(
-        tokens: Vec<Token>,
-        gene_map: &mut IndexMap<String, Arc<RwLock<Gene>>>,
-    ) -> GPRParser {
+    pub fn new(tokens: Vec<Token>, gene_map: &mut IndexMap<String, Gene>) -> GPRParser {
         GPRParser {
             tokens,
             current: 0,
@@ -95,7 +89,8 @@ impl<'gm> GPRParser<'gm> {
 
     fn primary(&mut self) -> Result<Gpr, ParseError> {
         if let Some(identifier) = self.match_identifier() {
-            return Ok(Gpr::new_gene_node(self.get_or_insert_gene(identifier)));
+            self.insert_if_needed(&identifier);
+            return Ok(Gpr::new_gene_node(&identifier));
         }
 
         if self.match_token(vec![Token::LeftParen]) {
@@ -184,19 +179,15 @@ impl<'gm> GPRParser<'gm> {
 
     // region Gene Map Functions
 
-    /// Get a reference to a gene in [`gene_map`] if it exists, or insert a new gene with the
-    /// provided id
-    fn get_or_insert_gene(&mut self, gene_id: String) -> Arc<RwLock<Gene>> {
-        self.gene_map
-            .entry(gene_id.clone())
-            .or_insert(Arc::new(RwLock::new(Gene::new(
-                gene_id,
-                None,
-                GeneActivity::Active,
-                None,
-                None,
-            ))))
-            .clone()
+    /// Check if a gnee_id exists as a key in gene_map, if it doesn't insert a new gene with that id
+    fn insert_if_needed(&mut self, gene_id: &str) {
+        if let None = self.gene_map.get(gene_id) {
+            // If the gene id doesn't exist, create a new gene and insert it
+            _ = self.gene_map.insert(
+                gene_id.to_string(),
+                Gene::new(gene_id.to_string(), None, GeneActivity::Active, None, None),
+            )
+        }
     }
 
     // endregion Gene Map Functions
@@ -239,8 +230,8 @@ mod tests {
             Gpr::Operation(_) => {
                 panic!("Incorrect Parse Result (Should have been single gene)")
             }
-            Gpr::Gene(gene) => {
-                if gene.read().unwrap().id != "Rv1304".to_string() {
+            Gpr::GeneNode(gene) => {
+                if gene != "Rv1304".to_string() {
                     panic!("Wrong Gene");
                 }
             }
@@ -261,8 +252,8 @@ mod tests {
                         Gpr::Operation(_) => {
                             panic!("Should have been a gene")
                         }
-                        Gpr::Gene(gene_ref) => {
-                            if gene_ref.read().unwrap().id != "Rv1304".to_string() {
+                        Gpr::GeneNode(gene) => {
+                            if gene != "Rv1304".to_string() {
                                 panic!("Incorrect Left Gene");
                             }
                         }
@@ -271,8 +262,8 @@ mod tests {
                         Gpr::Operation(_) => {
                             panic!("Should have been a gene")
                         }
-                        Gpr::Gene(gene_ref) => {
-                            if gene_ref.read().unwrap().id != "Rv0023".to_string() {
+                        Gpr::GeneNode(gene) => {
+                            if gene != "Rv0023".to_string() {
                                 panic!("Incorrect Right Gene");
                             }
                         }
@@ -285,7 +276,7 @@ mod tests {
                     panic!("Should have been an AND operation")
                 }
             },
-            Gpr::Gene(_) => {
+            Gpr::GeneNode(_) => {
                 panic!("Incorrect Parse Result (Should have been an AND operation)")
             }
         }
@@ -305,8 +296,8 @@ mod tests {
                         Gpr::Operation(_) => {
                             panic!("Should have been a gene")
                         }
-                        Gpr::Gene(gene_ref) => {
-                            if gene_ref.read().unwrap().id != "Rv1304".to_string() {
+                        Gpr::GeneNode(gene) => {
+                            if gene != "Rv1304".to_string() {
                                 panic!("Incorrect Left Gene");
                             }
                         }
@@ -315,8 +306,8 @@ mod tests {
                         Gpr::Operation(_) => {
                             panic!("Should have been a gene")
                         }
-                        Gpr::Gene(gene_ref) => {
-                            if gene_ref.read().unwrap().id != "Rv0023".to_string() {
+                        Gpr::GeneNode(gene) => {
+                            if gene != "Rv0023".to_string() {
                                 panic!("Incorrect Right Gene");
                             }
                         }
@@ -329,7 +320,7 @@ mod tests {
                     panic!("Should have been an OR operation")
                 }
             },
-            Gpr::Gene(_) => {
+            Gpr::GeneNode(_) => {
                 panic!("Incorrect Parse Result (Should have been an AND operation)")
             }
         }
@@ -348,8 +339,8 @@ mod tests {
                     Gpr::Operation(_) => {
                         panic!("Should have been a gene")
                     }
-                    Gpr::Gene(gene_ref) => {
-                        if gene_ref.read().unwrap().id != "Rv0023".to_string() {
+                    Gpr::GeneNode(gene) => {
+                        if gene != "Rv0023".to_string() {
                             panic!("Incorrect Left Gene");
                         }
                     }
@@ -358,7 +349,7 @@ mod tests {
                     panic!("Incorrect Operation Parsed")
                 }
             },
-            Gpr::Gene(_) => {
+            Gpr::GeneNode(_) => {
                 panic!("Incorrect Parse Result (Should have been an OR operation)")
             }
         }
@@ -381,8 +372,8 @@ mod tests {
                                     Gpr::Operation(_) => {
                                         panic!("Should have been a gene")
                                     }
-                                    Gpr::Gene(gene_ref) => {
-                                        if gene_ref.read().unwrap().id != "Rv3141".to_string() {
+                                    Gpr::GeneNode(gene) => {
+                                        if gene != "Rv3141".to_string() {
                                             panic!("Incorrect Left Gene");
                                         }
                                     }
@@ -391,8 +382,8 @@ mod tests {
                                     Gpr::Operation(_) => {
                                         panic!("Should have been a gene")
                                     }
-                                    Gpr::Gene(gene_ref) => {
-                                        if gene_ref.read().unwrap().id != "Rv0023".to_string() {
+                                    Gpr::GeneNode(gene) => {
+                                        if gene != "Rv0023".to_string() {
                                             panic!("Incorrect Right Gene");
                                         }
                                     }
@@ -410,9 +401,7 @@ mod tests {
                         Gpr::Operation(_) => {
                             panic!("Should Have Been a Gene Parsed")
                         }
-                        Gpr::Gene(gene_ref) => {
-                            if gene_ref.read().unwrap().id != "Rv0018".to_string() {}
-                        }
+                        Gpr::GeneNode(gene) => if gene != "Rv0018".to_string() {},
                     }
                 }
                 _ => {
@@ -436,8 +425,8 @@ mod tests {
             Gpr::Operation(op) => match op {
                 GprOperation::And { left, right } => {
                     match *right {
-                        Gpr::Gene(gene_ref) => {
-                            if gene_ref.read().unwrap().id != "Rv0003".to_string() {
+                        Gpr::GeneNode(gene) => {
+                            if gene != "Rv0003".to_string() {
                                 panic!("Incorrect Left Gene");
                             }
                         }
@@ -447,16 +436,16 @@ mod tests {
                         Gpr::Operation(op) => match op {
                             GprOperation::And { left, right } => {
                                 match *left {
-                                    Gpr::Gene(gene_ref) => {
-                                        if gene_ref.read().unwrap().id != "Rv0001".to_string() {
+                                    Gpr::GeneNode(gene) => {
+                                        if gene != "Rv0001".to_string() {
                                             panic!("Incorrect Left Gene");
                                         }
                                     }
                                     _ => panic!("Incorrect parse"),
                                 }
                                 match *right {
-                                    Gpr::Gene(gene_ref) => {
-                                        if gene_ref.read().unwrap().id != "Rv0002".to_string() {
+                                    Gpr::GeneNode(gene) => {
+                                        if gene != "Rv0002".to_string() {
                                             panic!("Incorrect Right Gene");
                                         }
                                     }

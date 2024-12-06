@@ -2,7 +2,7 @@
 
 /// Represents Tokens in GPR
 #[derive(Debug, PartialEq, Clone, Eq, Hash)]
-pub(super) enum Token {
+pub enum Token {
     Identifier(String),
     And,
     Or,
