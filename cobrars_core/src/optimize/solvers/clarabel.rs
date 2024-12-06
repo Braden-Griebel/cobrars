@@ -2,6 +2,7 @@
 
 use crate::optimize::objective::ObjectiveSense;
 use crate::optimize::solvers::{Solver, SolverError};
+use crate::optimize::ProblemSolution;
 
 #[derive(Clone, Debug)]
 pub struct ClarabelSolver {}
@@ -87,7 +88,7 @@ impl Solver for ClarabelSolver {
         todo!()
     }
 
-    fn new() -> Self {
+    fn solve(&mut self) -> Result<ProblemSolution, SolverError> {
         todo!()
     }
 }

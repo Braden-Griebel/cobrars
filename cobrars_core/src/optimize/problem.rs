@@ -2,15 +2,14 @@
 use indexmap::IndexMap;
 use thiserror::Error;
 
-use super::OptimizationStatus;
+use super::{OptimizationStatus, ProblemSolution};
 use crate::optimize::constraint::Constraint;
 use crate::optimize::objective::{Objective, ObjectiveSense, ObjectiveTerm};
-use crate::optimize::problem::ProblemError::{
-    NonExistentVariable, NonExistentVariablesInObjective,
-};
-use crate::optimize::solvers::Solver;
+use crate::optimize::problem::ProblemError::BadObjective;
+use crate::optimize::solvers::{Solver, SolverError};
 use crate::optimize::variable::{Variable, VariableBuilder, VariableType};
 
+// region Problem Implementation
 /// An optimization problem
 #[derive(Debug, Clone)]
 pub struct Problem {
@@ -32,8 +31,8 @@ pub struct Problem {
     num_constraints: usize,
 }
 
+/// Methods for creating a Problem
 impl Problem {
-    // region Creation Functions
     /// Create a new optimization problem
     pub fn new(objective_sense: ObjectiveSense) -> Self {
         Self {
@@ -57,17 +56,10 @@ impl Problem {
     pub fn new_minimization() -> Self {
         Self::new(ObjectiveSense::Minimize)
     }
+}
 
-    // endregion Creation Functions
-
-    // region Update Objective Sense
-    /// Update the objective sense of the problem
-    pub fn update_objective_sense(&mut self, sense: ObjectiveSense) {
-        self.objective.set_sense(sense);
-    }
-    // endregion Update Objective Sense
-
-    // region Adding Variables
+/// Methods for working with Problem variables
+impl Problem {
     /// Add a variable to the optimization problem
     pub fn add_variable(&mut self, mut variable: Variable) -> Result<(), ProblemError> {
         // Validate that the variable can in fact be added to the problem
@@ -125,9 +117,88 @@ impl Problem {
         };
         self.add_variable(new_var.clone())
     }
-    // endregion Adding Variables
 
-    // region Adding Constraints
+    /// Update the bounds of a variable
+    pub fn update_variable_bounds(
+        &mut self,
+        id: &str,
+        lower_bound: f64,
+        upper_bound: f64,
+    ) -> Result<(), ProblemError> {
+        if lower_bound > upper_bound {
+            return Err(ProblemError::BadVariable {
+                variable_id: id.to_string(),
+                message: "Tried updating bounds with lower_bound > upper_bound".to_string(),
+            });
+        }
+        match self.variables.get_mut(id) {
+            Some(var) => {
+                var.lower_bound = lower_bound;
+                var.upper_bound = upper_bound;
+            }
+            None => {
+                return Err(ProblemError::BadVariable {
+                    variable_id: id.to_string(),
+                    message: "Tried updating variable not in problem".to_string(),
+                })
+            }
+        };
+        Ok(())
+    }
+
+    /// Remove a variable from the problem, will also remove it as a term from all constraints
+    /// and any terms in the objective that include this variable
+    pub fn remove_variable(&mut self, variable_id: &str) -> Result<(), ProblemError> {
+        // Start by removing any terms in the objective including this variable
+        self.objective.remove_terms_with_variable(variable_id);
+        // Now remove any terms from constraints which include the variable
+        self.constraints.iter_mut().for_each(|(_, cons)| {
+            cons.remove_variable(variable_id);
+        });
+        // Finally the variable can be dropped from the model
+        match self.variables.get(variable_id) {
+            Some(_) => {
+                self.variables.shift_remove(variable_id);
+            }
+            None => {
+                return Err(ProblemError::BadVariable {
+                    variable_id: variable_id.to_string(),
+                    message: "Tried removing variable which isn't in problem".to_string(),
+                })
+            }
+        };
+        // And fix the index of the variables, as well as the count
+        self.fix_variable_indices_and_count();
+        // fix the problem type
+        self.fix_problem_type();
+        Ok(())
+    }
+
+    /// Check that a variable to be added is valid to add to this problem
+    fn validate_variable(&self, variable: &Variable) -> Result<(), ProblemError> {
+        // Check if there is already a variable with this id
+        if self.variables.get(&variable.id).is_some() {
+            return Err(ProblemError::BadVariable {
+                variable_id: variable.id.clone(),
+                message: "Tried adding variable with same id as variable already in problem"
+                    .to_string(),
+            });
+        };
+        // Check if the variable bounds are valid
+        let lb = variable.lower_bound;
+        let ub = variable.upper_bound;
+        if lb > ub {
+            return Err(ProblemError::BadVariable {
+                variable_id: variable.id.clone(),
+                message: "Tried adding variable with lower_bound > upper_bound".to_string(),
+            });
+        }
+        Ok(())
+    }
+}
+
+/// Methods for working with Problem constraints
+impl Problem {
     /// Add a constraint to the problem
     pub fn add_constraint(&mut self, constraint: Constraint) -> Result<(), ProblemError> {
         self.validate_constraint(&constraint)?;
@@ -163,9 +234,129 @@ impl Problem {
         self.add_constraint(new_cons)
     }
 
-    // endregion Adding Constraints
+    pub fn update_equality_constraint_bound(
+        &mut self,
+        constraint_id: &str,
+        new_equals: f64,
+    ) -> Result<(), ProblemError> {
+        let cons = self
+            .constraints
+            .get_mut(constraint_id)
+            .ok_or(ProblemError::BadConstraint {
+                constraint_id: constraint_id.to_string(),
+                message: "Tried updating constraint which isn't in Problem".to_string(),
+            })?;
+        match cons {
+            Constraint::Equality { ref mut equals, .. } => {
+                *equals = new_equals;
+            }
+            Constraint::Inequality { .. } => {
+                return Err(ProblemError::BadConstraint {
+                    constraint_id: constraint_id.to_string(),
+                    message: "Tried updating inequality constraint with update_equality_constraint_bound method".to_string(),
+                });
+            }
+        }
+        Ok(())
+    }
 
-    // region Adding Objective Terms
+    pub fn update_inequality_constraint_bounds(
+        &mut self,
+        constraint_id: &str,
+        new_lower_bound: f64,
+        new_upper_bound: f64,
+    ) -> Result<(), ProblemError> {
+        if new_lower_bound > new_upper_bound {
+            return Err(ProblemError::BadConstraint {
+                constraint_id: constraint_id.to_string(),
+                message: "Tried updating constraint bounds with lower_bound > upper_bound"
+                    .to_string(),
+            });
+        }
+        let cons = self
+            .constraints
+            .get_mut(constraint_id)
+            .ok_or(ProblemError::BadConstraint {
+                constraint_id: constraint_id.to_string(),
+                message: "Tried updating constraint which is not in problem".to_string(),
+            })?;
+        match cons {
+            Constraint::Equality { .. } => {
+                return Err(ProblemError::BadConstraint {
+                    constraint_id: constraint_id.to_string(),
+                    message: "Tried updating equality constraint with update_inequality_constraint_bounds method".to_string(),
+                });
+            }
+            Constraint::Inequality {
+                ref mut lower_bound,
+                ref mut upper_bound,
+                ..
+            } => {
+                *lower_bound = new_lower_bound;
+                *upper_bound = new_upper_bound;
+            }
+        };
+        Ok(())
+    }
+
+    /// Remove a constraint (by id) from the model
+    pub fn remove_constraint(&mut self, constraint_id: &str) {
+        // Should be able to just drop the constraint
+        self.constraints.shift_remove(constraint_id);
+        // Update constraint count
+        self.fix_constraint_count();
+    }
+
+    /// Check that a constraint to be added is valid to add to this Problem
+    fn validate_constraint(&self, constraint: &Constraint) -> Result<(), ProblemError> {
+        // Check that a variable with the same id doesn't already exist
+        if self.constraints.get(&constraint.get_id()).is_some() {
+            return Err(ProblemError::BadConstraint { constraint_id: constraint.get_id().to_string(), message: "Tried adding a constraint with the same id as a constraint already in the problem".to_string() });
+        }
+        // Check that for inequality constraints the bounds make sense
+        match constraint {
+            Constraint::Equality { .. } => {}
+            Constraint::Inequality {
+                lower_bound,
+                upper_bound,
+                ..
+            } => {
+                if lower_bound > upper_bound {
+                    return Err(ProblemError::BadConstraint {
+                        constraint_id: constraint.get_id().to_string(),
+                        message: "Tried adding a constraint with lower_bound > upper_bound"
+                            .to_string(),
+                    });
+                }
+            }
+        }
+        // Check that the variables in this constraint are in the model
+        for var in constraint.get_variables() {
+            if let Some(problem_var) = self.variables.get(&var) {
+                if var != problem_var.id {
+                    return Err(ProblemError::BadConstraint { constraint_id: constraint.get_id().to_string(), message: "Tried adding a constraint which includes variables not found in problem".to_string() });
+                }
+            } else {
+                return Err(ProblemError::BadConstraint {
+                    constraint_id: constraint.get_id().to_string(),
+                    message:
+                        "Tried adding a constraint which includes variables not found in problem"
+                            .to_string(),
+                });
+            }
+        }
+        // All checks have passed
+        Ok(())
+    }
+}
+
+/// Methods for working with Problem objective
+impl Problem {
+    /// Update the objective sense of the problem
+    pub fn update_objective_sense(&mut self, sense: ObjectiveSense) {
+        self.objective.set_sense(sense);
+    }
+
     /// Add a new term to the objective
     pub fn add_objective_term(
         &mut self,
@@ -213,123 +404,7 @@ impl Problem {
         self.add_objective_term(objective_term)
     }
 
-    // endregion Adding Objective Terms
-
-    // region update variable bounds
-    /// Update the bounds of a variable
-    pub fn update_variable_bounds(
-        &mut self,
-        id: &str,
-        lower_bound: f64,
-        upper_bound: f64,
-    ) -> Result<(), ProblemError> {
-        if lower_bound > upper_bound {
-            return Err(ProblemError::InvalidVariableBounds);
-        }
-        match self.variables.get_mut(id) {
-            Some(var) => {
-                var.lower_bound = lower_bound;
-                var.upper_bound = upper_bound;
-            }
-            None => return Err(NonExistentVariable),
-        };
-        Ok(())
-    }
-
-    // endregion update variable bounds
-
-    // region update constraint bounds
-
-    pub fn update_equality_constraint_bound(
-        &mut self,
-        constraint_id: &str,
-        new_equals: f64,
-    ) -> Result<(), ProblemError> {
-        let cons = self
-            .constraints
-            .get_mut(constraint_id)
-            .ok_or(ProblemError::NonExistentConstraint)?;
-        match cons {
-            Constraint::Equality { ref mut equals, .. } => {
-                *equals = new_equals;
-            }
-            Constraint::Inequality { .. } => {
-                return Err(ProblemError::InvalidEqualityConstraintBoundsUpdate);
-            }
-        }
-        Ok(())
-    }
-
-    pub fn update_inequality_constraint_bounds(
-        &mut self,
-        constraint_id: &str,
-        new_lower_bound: f64,
-        new_upper_bound: f64,
-    ) -> Result<(), ProblemError> {
-        if new_lower_bound > new_upper_bound {
-            return Err(ProblemError::InvalidConstraintBounds);
-        }
-        let cons = self
-            .constraints
-            .get_mut(constraint_id)
-            .ok_or(ProblemError::NonExistentConstraint)?;
-        match cons {
-            Constraint::Equality { .. } => {
-                return Err(ProblemError::InvalidInequalityConstraintBoundsUpdate);
-            }
-            Constraint::Inequality {
-                ref mut lower_bound,
-                ref mut upper_bound,
-                ..
-            } => {
-                *lower_bound = new_lower_bound;
-                *upper_bound = new_upper_bound;
-            }
-        };
-        Ok(())
-    }
-
-    // endregion update constrint bounds
-
-    // region Remove Variables
-    /// Remove a variable from the problem, will also remove it as a term from all constraints
-    /// and any terms in the objective that include this variable
-    pub fn remove_variable(&mut self, variable_id: &str) -> Result<(), ProblemError> {
-        // Start by removing any terms in the objective including this variable
-        self.objective.remove_terms_with_variable(variable_id);
-        // Now remove any terms from constraints which include the variable
-        self.constraints.iter_mut().for_each(|(_, cons)| {
-            cons.remove_variable(variable_id);
-        });
-        // Finally the variable can be dropped from the model
-        match self.variables.get(variable_id) {
-            Some(_) => {
-                self.variables.shift_remove(variable_id);
-            }
-            None => return Err(NonExistentVariable),
-        };
-        // And fix the index of the variables, as well as the count
-        self.fix_variable_indices_and_count();
-        // fix the problem type
-        self.fix_problem_type();
-        Ok(())
-    }
-
-    // endregion Remove Variables
-
-    // region Remove Constraints
-
-    /// Remove a constraint (by id) from the model
-    pub fn remove_constraint(&mut self, constraint_id: &str) {
-        // Should be able to just drop the constraint
-        self.constraints.shift_remove(constraint_id);
-        // Update constraint count
-        self.fix_constraint_count();
-    }
-    // endregion Remove Constraints
-
-    // region Remove Objective Terms
-    /// Remove all terms from the objective
+    /// Remove all terms from the problem objective
     pub fn remove_all_objective_terms(&mut self) {
         self.objective.remove_all_terms();
         // Demote problem type if needed
@@ -342,91 +417,51 @@ impl Problem {
             }
         }
     }
-    // endregion Remove Objective Terms
-
-    // region Validation Functions
-    /// Check that a variable to be added is valid to add to this problem
-    fn validate_variable(&self, variable: &Variable) -> Result<(), ProblemError> {
-        // Check if there is already a variable with this id
-        if self.variables.get(&variable.id).is_some() {
-            return Err(ProblemError::VariableIdAlreadyExists);
-        };
-        // Check if the variable bounds are valid
-        let lb = variable.lower_bound;
-        let ub = variable.upper_bound;
-        if lb > ub {
-            return Err(ProblemError::InvalidVariableBounds);
-        }
-        Ok(())
-    }
-
-    /// Check that a constraint to be added is valid to add to this Problem
-    fn validate_constraint(&self, constraint: &Constraint) -> Result<(), ProblemError> {
-        // Check that a variable with the same id doesn't already exist
-        if self.constraints.get(&constraint.get_id()).is_some() {
-            return Err(ProblemError::ConstraintAlreadyExists);
-        }
-        // Check that for inequality constraints the bounds make sense
-        match constraint {
-            Constraint::Equality { .. } => {}
-            Constraint::Inequality {
-                lower_bound,
-                upper_bound,
-                ..
-            } => {
-                if lower_bound > upper_bound {
-                    return Err(ProblemError::InvalidConstraintBounds);
-                }
-            }
-        }
-        // Check that the variables in this constraint are in the model
-        for var in constraint.get_variables() {
-            if let Some(problem_var) = self.variables.get(&var) {
-                if !(var == problem_var.id) {
-                    return Err(ProblemError::NonExistentVariablesInConstraint);
-                }
-            } else {
-                return Err(ProblemError::NonExistentVariablesInConstraint);
-            }
-        }
-        // All checks have passed
-        Ok(())
-    }
 
     /// Check that an objective term to be added is valid to add to this Problem
     fn validate_objective_term(&self, objective_term: &ObjectiveTerm) -> Result<(), ProblemError> {
         // make sure the variables in the objective are in the model
         match objective_term {
             ObjectiveTerm::Quadratic { var1, var2, .. } => {
+                // Check the first variable
                 if let Some(problem_var1) = self.variables.get(var1) {
-                    if !(*var1 == problem_var1.id) {
-                        return Err(ProblemError::NonExistentVariablesInObjective);
+                    if *var1 != problem_var1.id {
+                        return Err(BadObjective {message: format!("Objective term includes variable {var1}, which is not found in the problem")});
                     }
                 } else {
-                    return Err(ProblemError::NonExistentVariablesInObjective);
+                    return Err(BadObjective {message: format!("Objective term includes variable {var1}, which is not found in the problem")});
+                }
+                // Check the second variable
+                if let Some(problem_var2) = self.variables.get(var2) {
+                    if *var2 != problem_var2.id {
+                        return Err(BadObjective {message: format!("Objective term includes variable {var2}, which is not found in the problem")});
+                    }
+                } else {
+                    return Err(BadObjective {message: format!("Objective term includes variable {var2}, which is not found in the problem")});
                 }
             }
             ObjectiveTerm::Linear { var, .. } => {
                 if let Some(problem_var) = self.variables.get(var) {
-                    if !(*var == problem_var.id) {
-                        return Err(ProblemError::NonExistentVariablesInObjective);
+                    if *var != problem_var.id {
+                        return Err(BadObjective {message: format!("Objective term includes variable {var}, which is not found in the problem")});
                     }
                 } else {
-                    return Err(ProblemError::NonExistentVariablesInObjective);
+                    return Err(BadObjective {message: format!("Objective term includes variable {var}, which is not found in the problem")});
                 }
             }
         }
 
         Ok(())
     }
+}
 
-    // endregion Validation Functions
-
-    // region Fix Problem Functions
-    /*
-    Functions to fix the problem in various ways, such as making sure the variable indices are
-    correct
-    */
+/*
+Methods for fixing model consistency, mainly to be used after deleting variables,
+constraints, objectives etc. such that the variable counts/indices, problem type, and
+constraint information remains consistent.
+*/
+/// Methods for fixing Problem consistency
+impl Problem {
     fn fix_variable_indices_and_count(&mut self) {
         let num_variables = self.variables.len();
         self.variables
@@ -458,14 +493,15 @@ impl Problem {
             panic!("Something other than true or false returned as bool!")
         }
     }
+}
 
-    // endregion Fix Problem Functions
-
-    // region Check Problem
-    /*
-    Functions for checking properties of the Problem, such as if integer variables are
-    present, if the objective contains quadratic terms, etc.
-    */
+/*
+Functions for checking properties of the Problem, such as if integer variables are
+present, if the objective contains quadratic terms, etc.
+*/
+/// Methods for checking Problem properties
+impl Problem {
+    /// Check whether the problem contains integer variables
     pub fn has_integer_variables(&self) -> bool {
         for (_, var) in &self.variables {
             if var.variable_type == VariableType::Integer {
@@ -475,11 +511,140 @@ impl Problem {
         false
     }
 
+    /// Check whether the problem contains binary variables
+    pub fn has_binary_variables(&self) -> bool {
+        for (_, var) in &self.variables {
+            if var.variable_type == VariableType::Binary {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Check whether the objective contains quadratic terms
     pub fn has_quadratic_objective_terms(&self) -> bool {
         self.objective.contains_quadratic()
     }
+}
 
-    // endregion Check Problem
+/// Methods for solving the optimization problem using one of the backend solvers
+impl Problem {
+    pub fn solve<T: Solver>(&mut self, solver: &mut T) -> Result<ProblemSolution, ProblemError> {
+        self.construct_problem(solver)?;
+        match solver.solve() {
+            Ok(solution) => Ok(solution),
+            Err(e) => Err(ProblemError::SolverError(e)),
+        }
+    }
+
+    fn construct_problem<T: Solver>(&mut self, solver: &mut T) -> Result<(), ProblemError> {
+        // Determine solver capabilities
+        let handle_integer = solver.integer_variable_capable();
+        let handle_quadratic = solver.quadratic_objective_capable();
+        let handle_binary = solver.binary_variable_capable();
+        // Make sure problem type is correct
+        self.fix_problem_type();
+        match self.problem_type {
+            ProblemType::LinearContinuous => {
+                // This must be able to be handled by all solvers
+            }
+            ProblemType::QuadraticContinuous => {
+                if !handle_quadratic {
+                    return Err(ProblemError::SolverProblemConflict(
+                        "Solver can't handle quadratic objective terms".to_string(),
+                    ));
+                }
+            }
+            ProblemType::LinearMixedInteger => {
+                if !handle_integer {
+                    return Err(ProblemError::SolverProblemConflict(
+                        "Solver can't handle integer variables".to_string(),
+                    ));
+                }
+            }
+            ProblemType::QuadraticMixedInteger => {
+                if !handle_quadratic && handle_integer {
+                    return Err(ProblemError::SolverProblemConflict(
+                        "Solver can't handle quadratic objective terms".to_string(),
+                    ));
+                }
+            }
+        }
+
+        if !handle_binary && self.has_binary_variables() {
+            /* This should already be handled by the Integer Variable check, since
+            if a solver can handle integer variables it can by definition handle binary variables.
+            However, if one of the solvers throws an error on */
+            return Err(ProblemError::SolverProblemConflict(
+                "Solver can't handle binary variables".to_string(),
+            ));
+        }
+
+        // Add variables to the solver
+        for (id, var) in self.variables.iter() {
+            match var.variable_type {
+                VariableType::Continuous => {
+                    solver.add_continuous_variable(id, var.lower_bound, var.upper_bound)?
+                }
+                VariableType::Integer => {
+                    solver.add_integer_variable(id, var.lower_bound, var.upper_bound)?
+                }
+                VariableType::Binary => solver.add_binary_variable(id)?,
+            }
+        }
+        // Add constraints to the solver
+        for (id, cons) in self.constraints.iter() {
+            match cons {
+                Constraint::Equality { id, terms, equals } => {
+                    let mut variables: Vec<&str> = Vec::new();
+                    let mut coefficients: Vec<f64> = Vec::new();
+
+                    for term in terms {
+                        variables.push(&term.variable);
+                        coefficients.push(term.coefficient);
+                    }
+                    solver.add_equality_constraint(id, variables, coefficients, equals.clone())?
+                }
+                Constraint::Inequality {
+                    id,
+                    terms,
+                    lower_bound,
+                    upper_bound,
+                } => {
+                    let mut variables: Vec<&str> = Vec::new();
+                    let mut coefficients: Vec<f64> = Vec::new();
+
+                    for term in terms {
+                        variables.push(&term.variable);
+                        coefficients.push(term.coefficient.clone())
+                    }
+                    solver.add_inequality_constraint(
+                        id,
+                        variables,
+                        coefficients,
+                        lower_bound.clone(),
+                        upper_bound.clone(),
+                    )?
+                }
+            }
+        }
+
+        // Add objective to the solver
+        // Set the sense
+        solver.set_objective_sense(self.objective.sense.clone());
+        // Add all the terms
+        for term in self.objective.terms.iter() {
+            match term {
+                ObjectiveTerm::Quadratic { var1, var2, coef } => {
+                    solver.add_quadratic_objective_term(var1, var2, coef.clone())?
+                }
+                ObjectiveTerm::Linear { var, coef } => {
+                    solver.add_linear_objective_term(var, coef.clone())?
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Types of optimization problems
@@ -495,40 +660,36 @@ pub enum ProblemType {
     QuadraticMixedInteger,
 }
 
+// endregion Problem Implementation
+
+// region Error
+
 /// Errors associated with the Problem
 #[derive(Error, Debug, Clone)]
 pub enum ProblemError {
-    /// Error when trying to add a variable with the same id as an existing variable
-    #[error("Tried to add a variable with the same id as an existing variable")]
-    VariableIdAlreadyExists,
-    /// Error when trying to add variable with invalid bounds
-    #[error("Tried to add a variable with lower_bound>upper_bound")]
-    InvalidVariableBounds,
-    /// Error when trying to add a constraint with the same id as an existing constraint
-    #[error("Tried to add a constraint with the same id as an existing constraint")]
-    ConstraintAlreadyExists,
-    /// Error when trying to add a constraint with invalid bounds
-    #[error("Tried to add an inequality constraint with lower_bound > upper_bound")]
-    InvalidConstraintBounds,
-    /// Error when trying to add a constraint that contains variables not in the model
-    #[error("Tried to add a constraint with variables not in the model")]
-    NonExistentVariablesInConstraint,
-    /// Error when trying to add an objective term which includes variables not in the model
-    #[error("Tried adding an objective term with variables not in the model")]
-    NonExistentVariablesInObjective,
-    /// Error when trying to perform an update or drop on a variable that doesn't exist
-    #[error("Tried to access a variable that isn't int the problem")]
-    NonExistentVariable,
-    /// Error when trying to perform an update or drop on a constraint that isn't in the problem
-    #[error("Tried to access a constraint that isn't in the problem")]
-    NonExistentConstraint,
-    /// Error when  trying to update lower and upper bound on equality constraint
-    #[error("Tried to update inequality constraint with the equality bound update method")]
-    InvalidEqualityConstraintBoundsUpdate,
-    /// Error when trying to update equals bound on inequality constraint
-    #[error("Tried to update equality constraint using the inequality bounds update method")]
-    InvalidInequalityConstraintBoundsUpdate,
+    /// Error for bad variable access, addition, or update
+    #[error("Invalid variable {variable_id}: {message}")]
+    BadVariable {
+        variable_id: String,
+        message: String,
+    },
+    /// Error for bad constraint access, addition, or update
+    #[error("Invalid constraint {constraint_id}: {message}")]
+    BadConstraint {
+        constraint_id: String,
+        message: String,
+    },
+    /// Error for bad objective term access, addition, or update
+    #[error("Invalid objective encountered: {message}")]
+    BadObjective { message: String },
+    /// Error when trying to use solver which can't handle the problem type
+    #[error("Solver and problem have a conflict: {0}")]
+    SolverProblemConflict(String),
+    /// Error thrown from the solver
+    #[error("Solver returned an error")]
+    SolverError(#[from] SolverError),
 }
+// endregion Error
 
 #[cfg(test)]
 mod tests {
@@ -609,7 +770,11 @@ mod tests {
 
         // Add a variable with bad bounds
         let res = problem.add_new_variable("x", None, VariableType::Continuous, 100., 64.);
-        if let Err(ProblemError::InvalidVariableBounds) = res {
+        if let Err(ProblemError::BadVariable {
+            variable_id,
+            message,
+        }) = res
+        {
             // Intentionally blank
         } else {
             panic!("Invalid variable bounds not caught")
@@ -684,7 +849,7 @@ mod tests {
             .unwrap();
 
         // Add an equality constraint
-        if let Err(ProblemError::InvalidConstraintBounds) = problem.add_new_inequality_constraint(
+        if let Err(ProblemError::BadConstraint { .. }) = problem.add_new_inequality_constraint(
             "bad_constraint",
             &["x", "y"],
             &[2., 3.],
@@ -772,7 +937,7 @@ mod tests {
             }
         }
 
-        // Now add a integer variable
+        // Now add an integer variable
         problem
             .add_new_variable("z", None, VariableType::Integer, 4., 10.)
             .unwrap();
@@ -822,7 +987,7 @@ mod tests {
 
         let res = problem.update_variable_bounds("x", 5., 4.);
         assert!(res.is_err());
-        if let Err(ProblemError::InvalidVariableBounds) = res {
+        if let Err(ProblemError::BadVariable { .. }) = res {
         } else {
             panic!("Bad Variable Bounds Failed to be Caught")
         }
@@ -917,7 +1082,7 @@ mod tests {
         // try to update an inequality with the update equality method
         let res = problem.update_equality_constraint_bound("test_inequality_constraint", 15.);
         println!("{:?}", res);
-        if let Err(ProblemError::InvalidEqualityConstraintBoundsUpdate) = res {
+        if let Err(ProblemError::BadConstraint { .. }) = res {
             // This is expected
         } else {
             panic!("Missed bad bounds update");
@@ -929,7 +1094,7 @@ mod tests {
         // Try to update an equality with the inequality constraint bounds
         let res =
             problem.update_inequality_constraint_bounds("test_equality_constraint", 250., 300.);
-        if let Err(ProblemError::InvalidInequalityConstraintBoundsUpdate) = res {
+        if let Err(ProblemError::BadConstraint { .. }) = res {
             // This is expected
         } else {
             panic!("Missed bad bounds update");
@@ -937,7 +1102,7 @@ mod tests {
 
         // Try updating inequality bounds with bad bounds
         let res = problem.update_inequality_constraint_bounds("test_equality_constraint", 5., 4.);
-        if let Err(ProblemError::InvalidConstraintBounds) = res {
+        if let Err(ProblemError::BadConstraint { .. }) = res {
             // Expected
         } else {
             panic!("Missed bad bounds update");
@@ -1000,7 +1165,7 @@ mod tests {
         assert_eq!(problem.constraints.len(), 1);
         assert!(problem
             .constraints
-            .get("ttest_equality_constraint")
+            .get("test_equality_constraint")
             .is_none());
     }
 

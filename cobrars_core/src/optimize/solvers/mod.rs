@@ -1,4 +1,7 @@
-use crate::optimize::objective::ObjectiveSense;
+//! Provides interface to backend solvers
+
+use crate::optimize::objective::{Objective, ObjectiveSense};
+use crate::optimize::ProblemSolution;
 use std::fmt::Debug;
 use thiserror::Error;
 
@@ -88,11 +91,16 @@ pub trait Solver: Debug + Clone {
     /// Remove all previous terms from the objective
     fn clear_objective(&mut self) -> Result<(), SolverError>;
     // endregion objective
-    // region solver properties
-    fn new() -> Self;
-    // endregion solver properties
+    // region solve
+    fn solve(&mut self) -> Result<ProblemSolution, SolverError>;
+    // endregion solve
 }
 
 /// Possible solver error states
-#[derive(Error, Debug)]
+///
+/// # Note
+/// The solver can fail to find a solution without having an error, for example
+/// if the problem is inconsistent then the solver will return a ProblemSolution
+/// with an Infeasible OptimizationStatus
+#[derive(Error, Debug, Clone)]
 pub enum SolverError {}
