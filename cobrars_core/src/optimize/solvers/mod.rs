@@ -103,4 +103,23 @@ pub trait Solver: Debug + Clone {
 /// if the problem is inconsistent then the solver will return a ProblemSolution
 /// with an Infeasible OptimizationStatus
 #[derive(Error, Debug, Clone)]
-pub enum SolverError {}
+pub enum SolverError {
+    /// Error when trying to add an invalid variable to the solver
+    #[error("Tried to add invalid variable {variable_id}: {message}")]
+    BadVariable {
+        variable_id: String,
+        message: String,
+    },
+    /// Error when trying to add an invalid constraint to the solver
+    #[error("Tried to add invalid constraint {constraint_id}: {message}")]
+    BadConstraint {
+        constraint_id: String,
+        message: String,
+    },
+    /// Error when trying to add an invalid objective term to the solver
+    #[error("Tried to add an invalid objective term: {message}")]
+    BadObjectiveTerm { message: String },
+    /// Catch all for other types of solver errors
+    #[error("Solver threw error: {message}")]
+    SolverFailure { message: String }, // The usage of this should reduce as bugs are fixed
+}
