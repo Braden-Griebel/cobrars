@@ -41,4 +41,10 @@ pub enum OptimizationStatus {
     Unbounded,
     /// Problem can't be solved because it is infeasible (conflicting constraints)
     Infeasible,
+    /// An approximate solution has been found
+    AlmostOptimal,
+    /// A numerical error occurred during solving
+    NumericalError,
+    /// The solver hit the maximum allowed iterations, or max time, or made insufficient progress
+    SolverHalted,
 }
