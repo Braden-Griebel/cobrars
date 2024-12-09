@@ -8,6 +8,8 @@ edition = "2021"
 [features]
 scip = ["dep:russcip"]
 osqp = ["dep:osqp"]
+highs = ["dep:highs"]
+minilp = ["dep:microlp"]
 
 [dependencies]
 clarabel = "0.9.0"
@@ -21,3 +23,5 @@ derive_builder = "0.20.2"
 osqp = { version = "0.6.3", optional = true }
 cfg-if = "1.0.0"
 nalgebra-sparse = "0.10.0"
+highs = { version = "1.6.1", optional = true }
+microlp = { version = "0.2.6", optional = true }
