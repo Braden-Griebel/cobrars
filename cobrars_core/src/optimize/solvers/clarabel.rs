@@ -5,7 +5,7 @@ use crate::optimize::{OptimizationStatus, ProblemSolution};
 use clarabel;
 use clarabel::algebra;
 use clarabel::algebra::BlockConcatenate;
-use clarabel::solver::SolverStatus;
+use clarabel::solver::{IPSolver, SolverStatus};
 use indexmap::IndexMap;
 use nalgebra_sparse::{coo, csc};
 
@@ -102,6 +102,23 @@ impl Solver for ClarabelSolver {
     ) -> Result<(), SolverError> {
         self.variables.insert(id.to_string(), self.num_variables);
         self.num_variables += 1;
+        // Update the num_variables in the quadratic objective
+        self.quadratic_objective.num_variables = self.num_variables;
+        // Add the upper bound
+        self.add_less_equal_constraint(
+            format!("{}_upper_bound", id),
+            vec![id],
+            vec![1.],
+            upper_bound,
+        );
+        // Add the lower bound
+        self.add_greater_equal_constraint(
+            format!("{}_lower_bound", id),
+            vec![id],
+            vec![1.],
+            lower_bound,
+        );
+
         Ok(())
     }
 
@@ -231,19 +248,17 @@ impl Solver for ClarabelSolver {
         // Start by creating a nalgebra COO matrix
         let quad_obj_mat_coo = self.quadratic_objective.as_coo(); // P in Clarabel
                                                                   // Convert the matrix to a CSC
-        let quad_obj_mat_csc = csc::CscMatrix::from(&quad_obj_mat_coo);
+        let quad_obj_mat_csc = csc::CscMatrix::from(&quad_obj_mat_coo) * objective_multiplier;
+
         // Disassemble to get the col offsets, row indices and values
         let (col_offsets, row_indices, values) = quad_obj_mat_csc.disassemble();
-        // Create the CLarabel P matrix
+        // Create the Clarabel P matrix
         let p = algebra::CscMatrix::new(
             self.num_variables,
             self.num_variables,
             col_offsets,
             row_indices,
-            values
-                .iter()
-                .map(|v| v * objective_multiplier)
-                .collect::<Vec<f64>>(),
+            values,
         );
 
         // Create the linear part of the objective
@@ -309,7 +324,7 @@ impl Solver for ClarabelSolver {
                 .zip(constraint.coefficients.iter())
             {
                 let var_index = self.get_variable_index(var)?;
-                inequality_cons_mat_coo.push(var_index, cons_index, coef.clone());
+                inequality_cons_mat_coo.push(cons_index, var_index, coef.clone());
             }
         }
         // Convert the matrix to a CSC
@@ -332,56 +347,68 @@ impl Solver for ClarabelSolver {
         // Create the cone specifications for the constraints
         let cones: Vec<clarabel::solver::SupportedConeT<f64>> = vec![
             clarabel::solver::ZeroConeT(self.num_equality_constraints),
-            clarabel::solver::NonnegativeConeT(self.num_variables),
+            clarabel::solver::NonnegativeConeT(self.num_inequality_constraints),
         ];
 
-        //
-        let settings = clarabel::solver::DefaultSettingsBuilder::default()
-            .build()
-            .unwrap();
-
         // Create the solver object
-        let mut clarabel_solver =
-            clarabel::solver::DefaultSolver::new(&p, &linear_objective, &a, &b, &cones, settings);
-        
+        assert!(p.check_format().is_ok());
+        assert!(a.check_format().is_ok());
+        let mut clarabel_solver = clarabel::solver::DefaultSolver::new(
+            &p,
+            &linear_objective,
+            &a,
+            &b,
+            &cones,
+            self.solver_settings.clone(),
+        );
+
+        // Solve the problem
+        clarabel_solver.solve();
+
         // Now unpack the clarabel_solver to get the status, the variable values, and the dual values
         let opt_status = match clarabel_solver.solution.status {
-            SolverStatus::Unsolved => {OptimizationStatus::Unoptimized}
-            SolverStatus::Solved => {OptimizationStatus::Optimal}
-            SolverStatus::PrimalInfeasible | SolverStatus::DualInfeasible => {OptimizationStatus::Infeasible}
-            SolverStatus::AlmostSolved => {OptimizationStatus::AlmostOptimal}
+            SolverStatus::Unsolved => OptimizationStatus::Unoptimized,
+            SolverStatus::Solved => OptimizationStatus::Optimal,
+            SolverStatus::PrimalInfeasible | SolverStatus::DualInfeasible => {
+                OptimizationStatus::Infeasible
+            }
+            SolverStatus::AlmostSolved => OptimizationStatus::AlmostOptimal,
             SolverStatus::AlmostPrimalInfeasible | SolverStatus::AlmostDualInfeasible => {
                 OptimizationStatus::Infeasible
             }
-            SolverStatus::MaxIterations|SolverStatus::MaxTime| SolverStatus::InsufficientProgress => {
-                OptimizationStatus::SolverHalted
-            }
-            SolverStatus::NumericalError => {
-                OptimizationStatus::NumericalError
-            }
+            SolverStatus::MaxIterations
+            | SolverStatus::MaxTime
+            | SolverStatus::InsufficientProgress => OptimizationStatus::SolverHalted,
+            SolverStatus::NumericalError => OptimizationStatus::NumericalError,
         };
-        
+
         // Determine the variable values
         let primal_values = clarabel_solver.solution.x;
-        let mut variable_values:IndexMap<String, f64> = IndexMap::new();
+        let mut variable_values: IndexMap<String, f64> = IndexMap::new();
         for (var_id, var_index) in self.variables.iter() {
             variable_values.insert(var_id.to_string(), primal_values[var_index.clone()].clone());
         }
-        
+
         // Determine the objective value
         let objective_value = clarabel_solver.solution.obj_val;
-        
+
         // Determine the shadow prices (dual variable values)
         let solver_dual_values = clarabel_solver.solution.z;
         let mut dual_values: IndexMap<String, f64> = IndexMap::new();
-        for (var_id, var_index) in self.variables.iter() {
-            dual_values.insert(var_id.to_string(), solver_dual_values[var_index.clone()].clone());
+        for (cons_index, cons) in self.equality_constraints.iter().enumerate() {
+            dual_values.insert(cons.id.to_string(), solver_dual_values[cons_index].clone());
         }
-        
+        for (cons, cons_index) in self.inequality_constraints.iter().zip(
+            self.num_equality_constraints
+                ..(self.num_equality_constraints + self.num_inequality_constraints),
+        ) {
+            dual_values.insert(cons.id.to_string(), solver_dual_values[cons_index].clone());
+        }
+
         // Return the solution
         Ok(ProblemSolution {
             status: opt_status,
-            objective_value: Some(objective_value),
+            objective_value: Some(objective_value * objective_multiplier),
             variable_values: Some(variable_values),
             dual_values: Some(dual_values),
         })
@@ -536,7 +563,7 @@ impl ClarabelQuadraticObjective {
 
     /// Add a new term to the quadratic objective
     fn add_term(&mut self, var1_index: usize, var2_index: usize, coefficient: f64) {
-        // Enforce the symetry of the matrix
+        // Enforce the symmetry of the matrix
         /* Notes
             - The COO format allows duplicates, which will be summed when converted
             - The objective function is multiplied by 1/2, so the fact that entries along the
@@ -554,5 +581,204 @@ impl ClarabelQuadraticObjective {
     /// Add a variable to the objective (just updates the variable count)
     fn add_variable(&mut self) {
         self.num_variables += 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn linear_maximization() {
+        let mut solver = ClarabelSolver::new();
+        // Change the solver settings to stop the verbose output
+        let solver_settings: clarabel::solver::DefaultSettings<f64> =
+            clarabel::solver::DefaultSettingsBuilder::default()
+                .verbose(false)
+                .build()
+                .unwrap();
+        solver.set_clarabel_settings(solver_settings);
+        // Add some positive variables
+        solver.add_continuous_variable("x1", 0., 5.).unwrap();
+        solver.add_continuous_variable("x2", 2., 6.).unwrap();
+        // Set the objective to be 2*x1+3*x2, which is maximized at 28
+        solver
+            .set_objective_sense(ObjectiveSense::Maximize)
+            .unwrap();
+        solver.add_linear_objective_term("x1", 2.).unwrap();
+        solver.add_linear_objective_term("x2", 3.).unwrap();
+
+        // Solve the optimization problem
+        let solution = solver.solve().unwrap();
+        // Check the status
+        assert_eq!(solution.status, OptimizationStatus::Optimal);
+        // Check that the objective value is correct
+        assert!((solution.objective_value.unwrap() - 28.).abs() < 1e-7);
+        // Check the values of the variables
+        let var_values = solution.variable_values.unwrap();
+        assert!((var_values.get("x1").unwrap() - 5.).abs() < 1e-7);
+        assert!((var_values.get("x2").unwrap() - 6.).abs() < 1e-7);
+        // Check the values of the dual
+        let dual_values = solution.dual_values.unwrap();
+        assert!((dual_values.get("x1_upper_bound").unwrap() - 2.).abs() < 1e-7);
+        assert!((dual_values.get("x2_upper_bound").unwrap() - 3.).abs() < 1e-7);
+        assert!((dual_values.get("x1_lower_bound").unwrap() - 0.).abs() < 1e-7);
+        assert!((dual_values.get("x2_lower_bound").unwrap() - 0.).abs() < 1e-7);
+    }
+
+    #[test]
+    fn linear_minimization() {
+        let mut solver = ClarabelSolver::new();
+        // Change the solver settings to stop the verbose output
+        let solver_settings: clarabel::solver::DefaultSettings<f64> =
+            clarabel::solver::DefaultSettingsBuilder::default()
+                .verbose(false)
+                .build()
+                .unwrap();
+        solver.set_clarabel_settings(solver_settings);
+        // Add some positive variables
+        solver.add_continuous_variable("x1", 0., 5.).unwrap();
+        solver.add_continuous_variable("x2", 2., 6.).unwrap();
+        // Set the objective to be 2*x1+3*x2, which is maximized at 28
+        solver
+            .set_objective_sense(ObjectiveSense::Minimize)
+            .unwrap();
+        solver.add_linear_objective_term("x1", 2.).unwrap();
+        solver.add_linear_objective_term("x2", 3.).unwrap();
+
+        // Solve the optimization problem
+        let solution = solver.solve().unwrap();
+        // Check the status
+        assert_eq!(solution.status, OptimizationStatus::Optimal);
+        // Check that the objective value is correct
+        assert!((solution.objective_value.unwrap() - 6.).abs() < 1e-7);
+        // Check the values of the variables
+        let var_values = solution.variable_values.unwrap();
+        assert!((var_values.get("x1").unwrap() - 0.).abs() < 1e-7);
+        assert!((var_values.get("x2").unwrap() - 2.).abs() < 1e-7);
+        // Check the values of the dual
+        let dual_values = solution.dual_values.unwrap();
+        assert!((dual_values.get("x1_upper_bound").unwrap() - 0.).abs() < 1e-7);
+        assert!((dual_values.get("x2_upper_bound").unwrap() - 0.).abs() < 1e-7);
+        assert!((dual_values.get("x1_lower_bound").unwrap() - 2.).abs() < 1e-7);
+        assert!((dual_values.get("x2_lower_bound").unwrap() - 3.).abs() < 1e-7);
+    }
+
+    #[test]
+    fn single_quadratic_maximization() {
+        let mut solver = ClarabelSolver::new();
+        // Change the solver settings to stop the verbose output
+        let solver_settings: clarabel::solver::DefaultSettings<f64> =
+            clarabel::solver::DefaultSettingsBuilder::default()
+                .verbose(false)
+                .build()
+                .unwrap();
+        solver.set_clarabel_settings(solver_settings);
+        // Add some positive variables
+        solver.add_continuous_variable("x1", 0., 3.).unwrap();
+        solver.add_continuous_variable("x2", 0., 2.).unwrap();
+        // Add some quadratic terms to the objective
+        solver
+            .set_objective_sense(ObjectiveSense::Maximize)
+            .unwrap();
+        solver.add_quadratic_objective_term("x1", "x2", 2.).unwrap();
+
+        // Solve the optimization problem
+        let solution = solver.solve().unwrap();
+        // Check the status
+        assert_eq!(solution.status, OptimizationStatus::Optimal);
+        // Check that the objective value is correct
+        assert!((solution.objective_value.unwrap() - 12.).abs() < 1e-7);
+        // Check the values of the variables
+        let var_values = solution.variable_values.unwrap();
+        assert!((var_values.get("x1").unwrap() - 3.).abs() < 1e-7);
+        assert!((var_values.get("x2").unwrap() - 2.).abs() < 1e-7);
+        // Check the values of the dual
+        let dual_values = solution.dual_values.unwrap();
+        assert!((dual_values.get("x1_upper_bound").unwrap() - 4.).abs() < 1e-7);
+        assert!((dual_values.get("x2_upper_bound").unwrap() - 6.).abs() < 1e-7);
+        assert!((dual_values.get("x1_lower_bound").unwrap() - 0.).abs() < 1e-7);
+        assert!((dual_values.get("x2_lower_bound").unwrap() - 0.).abs() < 1e-7);
+    }
+
+    #[test]
+    fn single_quadratic_minimization() {
+        let mut solver = ClarabelSolver::new();
+        // Change the solver settings to stop the verbose output
+        let solver_settings: clarabel::solver::DefaultSettings<f64> =
+            clarabel::solver::DefaultSettingsBuilder::default()
+                .verbose(false)
+                .build()
+                .unwrap();
+        solver.set_clarabel_settings(solver_settings);
+        // Add some positive variables
+        solver.add_continuous_variable("x1", 1., 8.).unwrap();
+        solver.add_continuous_variable("x2", 3., 7.).unwrap();
+        // Add some quadratic terms to the objective
+        solver
+            .set_objective_sense(ObjectiveSense::Minimize)
+            .unwrap();
+        solver.add_quadratic_objective_term("x1", "x2", 2.).unwrap();
+
+        // Solve the optimization problem
+        let solution = solver.solve().unwrap();
+        // Check the status
+        assert_eq!(solution.status, OptimizationStatus::Optimal);
+        // Check that the objective value is correct
+        assert!((solution.objective_value.unwrap() - 6.).abs() < 1e-7);
+        // Check the values of the variables
+        let var_values = solution.variable_values.unwrap();
+        assert!((var_values.get("x1").unwrap() - 1.).abs() < 1e-7);
+        assert!((var_values.get("x2").unwrap() - 3.).abs() < 1e-7);
+        // Check the values of the dual
+        let dual_values = solution.dual_values.unwrap();
+        assert!((dual_values.get("x1_upper_bound").unwrap() - 0.).abs() < 1e-7);
+        assert!((dual_values.get("x2_upper_bound").unwrap() - 0.).abs() < 1e-7);
+        assert!((dual_values.get("x1_lower_bound").unwrap() - 6.).abs() < 1e-7);
+        assert!((dual_values.get("x2_lower_bound").unwrap() - 2.).abs() < 1e-7);
+    }
+
+    #[test]
+    fn multiple_quadratic_minimization() {
+        let mut solver = ClarabelSolver::new();
+        // Change the solver settings to stop the verbose output
+        let solver_settings: clarabel::solver::DefaultSettings<f64> =
+            clarabel::solver::DefaultSettingsBuilder::default()
+                .verbose(false)
+                .build()
+                .unwrap();
+        solver.set_clarabel_settings(solver_settings);
+        // Add some positive variables
+        solver.add_continuous_variable("x1", 5., 10.).unwrap();
+        solver.add_continuous_variable("x2", 4., 12.).unwrap();
+        // Add some quadratic terms to the objective creating x1*x1 + 2*x1*x2 + 3*x2*x2
+        solver
+            .set_objective_sense(ObjectiveSense::Minimize)
+            .unwrap();
+        solver.add_quadratic_objective_term("x1", "x2", 2.).unwrap();
+        solver.add_quadratic_objective_term("x1", "x1", 1.).unwrap();
+        solver.add_quadratic_objective_term("x2", "x2", 3.).unwrap();
+
+        // Solve the optimization problem
+        let solution = solver.solve().unwrap();
+        // Check the status
+        assert_eq!(solution.status, OptimizationStatus::Optimal);
+        // Check that the objective value is correct
+        assert!((solution.objective_value.unwrap() - (25. + 40. + 3. * 16.)).abs() < 1e-7);
+        // Check the values of the variables
+        let var_values = solution.variable_values.unwrap();
+        assert!((var_values.get("x1").unwrap() - 5.).abs() < 1e-7);
+        assert!((var_values.get("x2").unwrap() - 4.).abs() < 1e-7);
+        // Check the values of the dual
+        let dual_values = solution.dual_values.unwrap();
+        assert!((dual_values.get("x1_upper_bound").unwrap() - 0.).abs() < 1e-7);
+        assert!((dual_values.get("x2_upper_bound").unwrap() - 0.).abs() < 1e-7);
+        assert!((dual_values.get("x1_lower_bound").unwrap() - 18.).abs() < 1e-7);
+        assert!((dual_values.get("x2_lower_bound").unwrap() - 34.).abs() < 1e-7);
+    }
+
+    #[test]
+    fn multiple_quadratic_maximization() {
+        // There are issues with maximization types of problems
+        //TODO: Fix this issue if possible?
     }
 }

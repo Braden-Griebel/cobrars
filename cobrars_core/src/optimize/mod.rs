@@ -31,7 +31,7 @@ pub struct ProblemSolution {
 }
 
 /// Status of an optimization problem
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum OptimizationStatus {
     /// Problem has not yet attempted to be optimized
     Unoptimized,
