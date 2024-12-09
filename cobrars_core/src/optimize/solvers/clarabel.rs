@@ -11,13 +11,20 @@ use nalgebra_sparse::{coo, csc};
 
 /// Solver backend to interface with Clarabel
 ///
-/// #### Note
-/// Currently, this interface essentially recreates the problem each time solve is called,
-/// this may be updated in the future, but for now the goal is ensuring correctness rather
-/// than strictly performance (though the model generation should be fairly fast, and
-/// the usage of sparse matrices reduces the memory impact). Additionally, since the
-/// objective uses sparse matrices, and can't be updated with a different sparsity pattern,
-/// the ability to update the objective is limited regardless.
+/// #### Notes
+/// - Currently, this interface essentially recreates the problem each time solve is called,
+///   this may be updated in the future, but for now the goal is ensuring correctness rather
+///   than strictly performance (though the model generation should be fairly fast, and
+///   the usage of sparse matrices reduces the memory impact). Additionally, since the
+///   objective uses sparse matrices, and can't be updated with a different sparsity pattern,
+///   the ability to update the objective is limited regardless.
+/// - Clarabel formulates problems as minimization problems, and requires that the P matrix 
+///   (representing the quadratic objective) is positive semi-definite. This can cause issues
+///   when trying to maximize a problem with a quadratic objective component (since the 
+///   maximization problem is formulated by multiplying P by -1, which can result in a 
+///   matrix that is not positive semi-definite). Further, in general caution is required to 
+///   ensure that the P matrix is indeed positive semi-definite, as if it is not this can 
+///   lead to difficult to diagnose errors with the Clarabel solver.  
 #[derive(Clone, Debug)]
 pub struct ClarabelSolver {
     /// Whether the problem is to maximize or minimize the objective expression
@@ -252,6 +259,7 @@ impl Solver for ClarabelSolver {
 
         // Disassemble to get the col offsets, row indices and values
         let (col_offsets, row_indices, values) = quad_obj_mat_csc.disassemble();
+        
         // Create the Clarabel P matrix
         let p = algebra::CscMatrix::new(
             self.num_variables,
@@ -586,7 +594,9 @@ impl ClarabelQuadraticObjective {
 
 #[cfg(test)]
 mod tests {
+    use clarabel::algebra::MatrixMathMut;
     use super::*;
+    use clarabel::solver::NonnegativeConeT;
     #[test]
     fn linear_maximization() {
         let mut solver = ClarabelSolver::new();
@@ -664,43 +674,6 @@ mod tests {
     }
 
     #[test]
-    fn single_quadratic_maximization() {
-        let mut solver = ClarabelSolver::new();
-        // Change the solver settings to stop the verbose output
-        let solver_settings: clarabel::solver::DefaultSettings<f64> =
-            clarabel::solver::DefaultSettingsBuilder::default()
-                .verbose(false)
-                .build()
-                .unwrap();
-        solver.set_clarabel_settings(solver_settings);
-        // Add some positive variables
-        solver.add_continuous_variable("x1", 0., 3.).unwrap();
-        solver.add_continuous_variable("x2", 0., 2.).unwrap();
-        // Add some quadratic terms to the objective
-        solver
-            .set_objective_sense(ObjectiveSense::Maximize)
-            .unwrap();
-        solver.add_quadratic_objective_term("x1", "x2", 2.).unwrap();
-
-        // Solve the optimization problem
-        let solution = solver.solve().unwrap();
-        // Check the status
-        assert_eq!(solution.status, OptimizationStatus::Optimal);
-        // Check that the objective value is correct
-        assert!((solution.objective_value.unwrap() - 12.).abs() < 1e-7);
-        // Check the values of the variables
-        let var_values = solution.variable_values.unwrap();
-        assert!((var_values.get("x1").unwrap() - 3.).abs() < 1e-7);
-        assert!((var_values.get("x2").unwrap() - 2.).abs() < 1e-7);
-        // Check the values of the dual
-        let dual_values = solution.dual_values.unwrap();
-        assert!((dual_values.get("x1_upper_bound").unwrap() - 4.).abs() < 1e-7);
-        assert!((dual_values.get("x2_upper_bound").unwrap() - 6.).abs() < 1e-7);
-        assert!((dual_values.get("x1_lower_bound").unwrap() - 0.).abs() < 1e-7);
-        assert!((dual_values.get("x2_lower_bound").unwrap() - 0.).abs() < 1e-7);
-    }
-
-    #[test]
     fn single_quadratic_minimization() {
         let mut solver = ClarabelSolver::new();
         // Change the solver settings to stop the verbose output
@@ -774,11 +747,5 @@ mod tests {
         assert!((dual_values.get("x2_upper_bound").unwrap() - 0.).abs() < 1e-7);
         assert!((dual_values.get("x1_lower_bound").unwrap() - 18.).abs() < 1e-7);
         assert!((dual_values.get("x2_lower_bound").unwrap() - 34.).abs() < 1e-7);
-    }
-
-    #[test]
-    fn multiple_quadratic_maximization() {
-        // There are issues with maximization types of problems
-        //TODO: Fix this issue if possible?
     }
 }

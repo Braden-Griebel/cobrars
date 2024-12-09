@@ -119,6 +119,9 @@ pub enum SolverError {
     /// Error when trying to add an invalid objective term to the solver
     #[error("Tried to add an invalid objective term: {message}")]
     BadObjectiveTerm { message: String },
+    /// Error when there is a problem with the problem posed to the solver
+    #[error("Issue with the problem formulation for the solver: {message}")]
+    InvalidProblem {message: String},
     /// Catch all for other types of solver errors
     #[error("Solver threw error: {message}")]
     SolverFailure { message: String }, // The usage of this should reduce as bugs are fixed
