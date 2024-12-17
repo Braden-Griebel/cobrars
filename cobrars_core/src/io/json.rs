@@ -1,5 +1,6 @@
 //! Module providing JSON IO for cobrars Models
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::fs;
 use std::path::Path;
 

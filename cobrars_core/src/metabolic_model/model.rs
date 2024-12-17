@@ -3,18 +3,18 @@
 use std::collections::VecDeque;
 use std::fmt::{Display, Formatter};
 
+use indexmap::IndexMap;
+use thiserror::Error;
+
+use crate::configuration::CONFIGURATION;
 use crate::metabolic_model::gene::{Gene, GeneActivity};
 use crate::metabolic_model::metabolite::Metabolite;
 use crate::metabolic_model::reaction::{Reaction, ReactionActivity};
-use crate::optimize::problem::{Problem, ProblemError};
-use crate::optimize::solvers::{SelectedSolver, Solver};
-
-use crate::configuration::CONFIGURATION;
 use crate::optimize;
+use crate::optimize::problem::{Problem, ProblemError};
 use crate::optimize::solvers::clarabel::ClarabelSolver;
+use crate::optimize::solvers::{SelectedSolver, Solver};
 use crate::optimize::variable::VariableType;
-use indexmap::IndexMap;
-use thiserror::Error;
 
 /// Represents a Genome Scale Metabolic Model
 #[derive(Clone, Debug)]
@@ -60,7 +60,10 @@ impl Model {
             reaction_activity_update_required: false,
         }
     }
+}
 
+/// Functions for updating a model
+impl Model {
     /// Add a reaction to the model
     ///
     /// # Parameters
@@ -77,6 +80,35 @@ impl Model {
     pub fn add_reaction(&mut self, reaction: Reaction) {
         let id = reaction.id.clone();
         self.reactions.insert(id, reaction);
+    }
+
+    /// Remove a reaction from the model
+    /// 
+    /// See [`self.knockout_reaction`] for a method which temporarily disables a reaction 
+    /// rather than removing it. 
+    ///
+    /// # Parameters
+    /// - id: ID of the reaction to remove
+    ///
+    /// # Examples
+    /// ```rust
+    /// use cobrars_core::metabolic_model::model::Model;
+    /// use cobrars_core::metabolic_model::reaction::{Reaction, ReactionBuilder};
+    /// let mut model = Model::new_empty();
+    /// let new_reaction = ReactionBuilder::default().id("new_reaction".to_string()).build().unwrap();
+    /// model.add_reaction(new_reaction);
+    /// model.remove_reaction("new_reaction").unwrap();
+    /// ```
+    pub fn remove_reaction(&mut self, id: &str) -> Result<(), ModelError> {
+        if self.reactions.shift_remove(id).is_none() {
+            return Err(ModelError::InvalidReaction {
+                message: format!(
+                    "Tried to remove reaction with id {}, but it is not present in model",
+                    id
+                ),
+            });
+        };
+        Ok(())
     }
 
     /// Add a gene to the model
@@ -96,12 +128,113 @@ impl Model {
         let id = gene.id.clone();
         self.genes.insert(id, gene);
     }
+
+    /// Remove a gene from the model
+    ///
+    /// Note: This will not remove the gene from all reactions which may include the gene in
+    /// their GPRs, which can result in an inconsistent model. See [`self.knockout_gene`] for 
+    /// a method which temporarily disables a gene rather than removing it. 
+    ///
+    /// # Parameters
+    /// - gene: Gene to add
+    ///
+    /// # Examples
+    /// ```rust
+    /// use cobrars_core::metabolic_model::gene::GeneBuilder;
+    /// use cobrars_core::metabolic_model::model::Model;
+    /// let mut model=Model::new_empty();
+    /// let new_gene = GeneBuilder::default().id("new_gene".to_string()).build().unwrap();
+    /// model.add_gene(new_gene);
+    /// ```
+    pub fn remove_gene(&mut self, id: &str) -> Result<(), ModelError> {
+        if self.genes.shift_remove(id).is_none() {
+            return Err(ModelError::InvalidGene {
+                message: format!(
+                    "Tried to remove gene with id {}, but it is not present in model",
+                    id
+                ),
+            });
+        }
+        Ok(())
+    }
+
+    /// Add a metabolite to the model
+    ///
+    /// # Parameters
+    /// - metabolite: Metabolite to add
+    ///
+    /// # Examples
+    /// ```rust
+    /// use cobrars_core::metabolic_model::metabolite::MetaboliteBuilder;
+    /// use cobrars_core::metabolic_model::model::Model;
+    /// let mut model=Model::new_empty();
+    /// let new_metabolite = MetaboliteBuilder::default().id("new_metabolite".to_string()).build().unwrap();
+    /// model.add_metabolite(new_metabolite);
+    /// ```
+    pub fn add_metabolite(&mut self, metabolite: Metabolite) {
+        let id = metabolite.id.clone();
+        self.metabolites.insert(id, metabolite);
+    }
+
+
+    /// Remove a metabolite from the model
+    ///
+    /// # Parameters
+    /// - metabolite: Metabolite to remove
+    ///
+    /// # Examples
+    /// ```rust
+    /// use cobrars_core::metabolic_model::metabolite::MetaboliteBuilder;
+    /// use cobrars_core::metabolic_model::model::Model;
+    /// let mut model=Model::new_empty();
+    /// let new_metabolite = MetaboliteBuilder::default().id("new_metabolite".to_string()).build().unwrap();
+    /// model.add_metabolite(new_metabolite);
+    /// model.remove_metabolite("new_metabolite").unwrap()
+    /// ```
+    pub fn remove_metabolite(&mut self, id: &str) -> Result<(), ModelError> {
+        if self.metabolites.shift_remove(id).is_none() {
+            return Err(ModelError::InvalidMetabolite {
+                message: format!("Tried to remove metabolite with id {}, but it is not present in model", id)
+            })
+        };
+        Ok(())
+    }
+    
+    
+    /// Knock out a gene 
+    /// 
+    /// Sets a particular gene to be inactive
+    /// 
+    /// # Parameters
+    /// - gene: Gene to knock out
+    /// 
+    /// # Examples
+    /// ```rust
+    /// use cobrars_core::metabolic_model::model::Model;
+    /// use cobrars_core::metabolic_model::gene::GeneBuilder;
+    /// let mut model=Model::new_empty();
+    /// let new_gene = GeneBuilder::default().id("new_gene".to_string()).build().unwrap();
+    /// model.add_gene(new_gene);
+    /// model.knockout_gene("new_gene").unwrap()
+    /// ```
+    pub fn knockout_gene(&mut self, gene: &str)->Result<(), ModelError>{
+        let gene = match self.genes.get_mut(gene){
+            Some(gene) => gene,
+            None => {return Err(ModelError::InvalidGene {message: format!("Tried to knock out gene {}, but it is not present in model", gene)})}
+        };
+        gene.activity = GeneActivity::Inactive;
+        self.reaction_activity_update_required = true;
+        Ok(())
+    }
+    
+    
+    pub fn enable_gene(&mut self, gene: &str)->Result<(), ModelError>{}
 }
 
 /// Functions for constructing an optimization problem from a Model
 impl Model {
     pub fn optimize(&mut self) -> Result<optimize::ProblemSolution, ModelError> {
-        if let None = self.problem {
+        if self.problem.is_none() {
             self.generate_problem();
         }
 
@@ -124,8 +257,9 @@ impl Model {
 
     pub fn generate_problem(&mut self) -> Result<(), ModelError> {
         // Ensure the reaction activity matches the current state of gene activity
-        // TODO: Could add a flag to the model to check if this is necessary
-        self.update_reaction_activity();
+        if self.reaction_activity_update_required {
+            self.update_reaction_activity();
+        }
         // Create a problem from the model
         self.problem = Some(self.problem_from_model()?);
         Ok(())
@@ -133,26 +267,29 @@ impl Model {
 
     /// Update reaction activity based on current state of genes
     fn update_reaction_activity(&mut self) -> Result<(), ModelError> {
-        let mut reaction_activity:VecDeque<ReactionActivity> = VecDeque::new();
+        let mut reaction_activity: VecDeque<ReactionActivity> = VecDeque::new();
         // Determine the activity of all the reactions
         for reaction in self.reactions.values() {
             if reaction.activity_set {
                 reaction_activity.push_back(reaction.activity.clone());
-                continue
+                continue;
             }
             match reaction.gpr {
                 None => {
                     reaction_activity.push_back(ReactionActivity::Active);
                 }
-                Some(ref gpr) => {
-                    reaction_activity.push_back(self.eval_gpr(gpr)?.into())
-                }
+                Some(ref gpr) => reaction_activity.push_back(self.eval_gpr(gpr)?.into()),
             }
         }
         // Now actually update the activities
-        for (reaction, activity) in self.reactions.values_mut().zip(reaction_activity.into_iter()){
+        for (reaction, activity) in self
+            .reactions
+            .values_mut()
+            .zip(reaction_activity.into_iter())
+        {
             reaction.activity = activity;
         }
+        // Since the activity has been updated, the reaction activities are correct and no longer need to be updated
         self.reaction_activity_update_required = false;
         Ok(())
     }
@@ -194,10 +331,10 @@ impl Model {
                     .and_modify(|(rxns, coefs)| {
                         // Add the forward variable and coefficient
                         rxns.push(rxn.get_forward_id());
-                        coefs.push(coef.clone());
+                        coefs.push(*coef);
                         // Add the reverse variable and coefficient
                         rxns.push(rxn.get_reverse_id());
-                        coefs.push(-1f64 * coef.clone());
+                        coefs.push(-1f64 * *coef);
                     });
             }
         }
@@ -206,7 +343,6 @@ impl Model {
         for (met_id, (var_ids, var_coefs)) in metabolite_constraints.iter() {
             associated_problem.add_new_equality_constraint(
                 met_id,
-                // TODO: Potentially redo the underlying constraint creation to make this less obnoxious
                 &var_ids.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
                 var_coefs,
                 0f64,
@@ -242,6 +378,8 @@ pub enum ModelError {
     InvalidMetabolite { message: String },
     #[error("Problem accessing reaction: {message}")]
     InvalidReaction { message: String },
+    #[error("Problem accessing gene: {message}")]
+    InvalidGene { message: String },
     #[error("Model failed to generate optimization problem")]
     ProblemGenerationError,
     #[error("Problem accessing reaction activity: {0}")]
@@ -658,4 +796,70 @@ mod gpr_tests {
             "((Rv0001 and (not Rv0002)) or (not Rv0003))"
         );
     }
+}
+
+#[cfg(test)]
+mod model_tests {
+    use super::*;
+    use crate::metabolic_model::metabolite::MetaboliteBuilder;
+
+    fn set_up_small_model() -> Model {
+        let mut test_model = Model::new_empty();
+        // Create Metabolites
+        let a_e = MetaboliteBuilder::default()
+            .id("A_e".to_string())
+            .name(Some("A".to_string()))
+            .compartment(Some("e".to_string()))
+            .formula(Some("C11H21N2".to_string()))
+            .build()
+            .unwrap();
+        let b_e = MetaboliteBuilder::default()
+            .id("B_e".to_string())
+            .name(Some("B".to_string()))
+            .compartment(Some("e".to_string()))
+            .formula(Some("C8H18".to_string()))
+            .build()
+            .unwrap();
+        let c_e = MetaboliteBuilder::default()
+            .id("C_e".to_string())
+            .name(Some("C".to_string()))
+            .compartment(Some("e".to_string()))
+            .formula(Some("C8H18".to_string()))
+            .build()
+            .unwrap();
+        let f_e = MetaboliteBuilder::default()
+            .id("F_e".to_string())
+            .name(Some("F".to_string()))
+            .compartment(Some("e".to_string()))
+            .formula(Some("C8H18".to_string()))
+            .build()
+            .unwrap();
+        let g_e = MetaboliteBuilder::default()
+            .id("G_e".to_string())
+            .name(Some("G".to_string()))
+            .compartment(Some("e".to_string()))
+            .formula(Some("C8H18".to_string()))
+            .build()
+            .unwrap();
+        let h_e = MetaboliteBuilder::default()
+            .id("H_e".to_string())
+            .name(Some("H".to_string()))
+            .compartment(Some("e".to_string()))
+            .formula(Some("C8H18".to_string()))
+            .build()
+            .unwrap();
+        let b_c = MetaboliteBuilder::default()
+            .id("C_e".to_string())
+            .name(Some("C".to_string()))
+            .compartment(Some("e".to_string()))
+            .formula(Some("C8H18".to_string()))
+            .build()
+            .unwrap();
+        
+        
+        test_model
+    }
+
+    #[test]
+    fn test_simple_optimization() {}
 }

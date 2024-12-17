@@ -20,6 +20,10 @@ pub struct Reaction {
     /// Gene Protein Reaction rule to determine if reaction is active
     #[builder(default = "None")]
     pub gpr: Option<Gpr>,
+    /// String representation of a gene protein reaction rule, which will be parsed when 
+    /// the reaction is added to a Model
+    #[builder(default = "None")]
+    pub gpr_string: Option<String>,
     /// Lower flux bound
     #[builder(default = "CONFIGURATION.read().unwrap().lower_bound")]
     pub lower_bound: f64,
