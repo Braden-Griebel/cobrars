@@ -4,6 +4,8 @@ use crate::configuration::CONFIGURATION;
 use crate::utils::hashing::hash_as_hex_string;
 use derive_builder::Builder;
 use indexmap::IndexMap;
+use crate::metabolic_model::gene::{Gene, GeneActivity};
+
 /// Represents a reaction in the metabolic model
 #[derive(Builder, Debug, Clone)]
 pub struct Reaction {
@@ -43,7 +45,7 @@ pub struct Reaction {
     /// Basically this acts as a pin, if the reaction activity was manually set, it will keep
     /// that activity regardless of changes to the gene activity in the GPR.
     #[builder(default = "false")]
-    activity_set: bool,
+    pub(super) activity_set: bool,
 }
 
 impl Reaction {
@@ -127,4 +129,13 @@ pub enum ReactionActivity {
     Active,
     /// The Reaction is inactive and can't carry flux
     Inactive,
+}
+
+impl From<GeneActivity> for ReactionActivity {
+    fn from(value: GeneActivity) -> Self {
+        match value {
+            GeneActivity::Active => ReactionActivity::Active,
+            GeneActivity::Inactive => ReactionActivity::Inactive,
+        }
+    }
 }

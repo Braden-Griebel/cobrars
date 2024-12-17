@@ -213,6 +213,7 @@ impl Model {
             compartments: json_model.compartments,
             version: json_model.version,
             solver,
+            reaction_activity_update_required: false,
         })
     }
     fn to_json(&self) -> Result<JsonModel, JsonError> {

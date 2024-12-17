@@ -1,9 +1,11 @@
 //! This module provides the Model struct for representing an entire metabolic model
+
+use std::collections::VecDeque;
 use std::fmt::{Display, Formatter};
 
 use crate::metabolic_model::gene::{Gene, GeneActivity};
 use crate::metabolic_model::metabolite::Metabolite;
-use crate::metabolic_model::reaction::Reaction;
+use crate::metabolic_model::reaction::{Reaction, ReactionActivity};
 use crate::optimize::problem::{Problem, ProblemError};
 use crate::optimize::solvers::{SelectedSolver, Solver};
 
@@ -37,6 +39,8 @@ pub struct Model {
     pub version: Option<String>,
     /// The backend solver to use for solving this model
     pub solver: SelectedSolver,
+    /// A flag to determine if reaction activity may have changed
+    pub(crate) reaction_activity_update_required: bool,
 }
 
 impl Model {
@@ -53,6 +57,7 @@ impl Model {
             compartments: None,
             version: None,
             solver,
+            reaction_activity_update_required: false,
         }
     }
 
@@ -128,6 +133,27 @@ impl Model {
 
     /// Update reaction activity based on current state of genes
     fn update_reaction_activity(&mut self) -> Result<(), ModelError> {
+        let mut reaction_activity:VecDeque<ReactionActivity> = VecDeque::new();
+        // Determine the activity of all the reactions
+        for reaction in self.reactions.values() {
+            if reaction.activity_set {
+                reaction_activity.push_back(reaction.activity.clone());
+                continue
+            }
+            match reaction.gpr {
+                None => {
+                    reaction_activity.push_back(ReactionActivity::Active);
+                }
+                Some(ref gpr) => {
+                    reaction_activity.push_back(self.eval_gpr(gpr)?.into())
+                }
+            }
+        }
+        // Now actually update the activities
+        for (reaction, activity) in self.reactions.values_mut().zip(reaction_activity.into_iter()){
+            reaction.activity = activity;
+        }
+        self.reaction_activity_update_required = false;
         Ok(())
     }
 
@@ -218,6 +244,8 @@ pub enum ModelError {
     InvalidReaction { message: String },
     #[error("Model failed to generate optimization problem")]
     ProblemGenerationError,
+    #[error("Problem accessing reaction activity: {0}")]
+    GprError(#[from] GprError),
 }
 // endregion Model Error
 
