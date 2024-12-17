@@ -33,6 +33,17 @@ pub struct Reaction {
     /// Reaction Annotations
     #[builder(default = "None")]
     pub annotation: Option<String>,
+    /// Reaction Activity
+    #[builder(default = "ReactionActivity::Active")]
+    pub activity: ReactionActivity,
+    /// Was the reaction activity manually set
+    ///
+    /// ### Note
+    /// This is used for keeping track of Model updates, and enabling the rollback of changes.
+    /// Basically this acts as a pin, if the reaction activity was manually set, it will keep
+    /// that activity regardless of changes to the gene activity in the GPR.
+    #[builder(default = "false")]
+    activity_set: bool,
 }
 
 impl Reaction {
@@ -51,4 +62,69 @@ impl Reaction {
     pub fn get_reverse_id(&self) -> String {
         format!("{}_reverse_{}", &self.id, hash_as_hex_string(&self.id))
     }
+
+    /// Determine the upper bound of the variable associated with the forward reaction
+    pub(crate) fn get_forward_upper_bound(&self) -> f64 {
+        match self.activity {
+            ReactionActivity::Active => {
+                if self.upper_bound > 0f64 {
+                    self.upper_bound
+                } else {
+                    0f64
+                }
+            }
+            ReactionActivity::Inactive => 0f64,
+        }
+    }
+
+    /// Determine the lower bound of the variable associated with the forward reaction
+    pub(crate) fn get_forward_lower_bound(&self) -> f64 {
+        match self.activity {
+            ReactionActivity::Active => {
+                if self.lower_bound > 0f64 {
+                    self.lower_bound
+                } else {
+                    0f64
+                }
+            }
+            ReactionActivity::Inactive => 0f64,
+        }
+    }
+
+    /// Determine the upper bound of the variable associated with the reverse reaction
+    pub(crate) fn get_reverse_upper_bound(&self) -> f64 {
+        match self.activity {
+            ReactionActivity::Active => {
+                if self.lower_bound < 0f64 {
+                    -self.lower_bound
+                } else {
+                    0f64
+                }
+            }
+            ReactionActivity::Inactive => 0f64,
+        }
+    }
+
+    /// Determine the lower bound of the variable associated with the reverse reaction
+    pub(crate) fn get_reverse_lower_bound(&self) -> f64 {
+        match self.activity {
+            ReactionActivity::Active => {
+                if self.upper_bound < 0f64 {
+                    -self.upper_bound
+                } else {
+                    0f64
+                }
+            }
+            ReactionActivity::Inactive => 0f64,
+        }
+    }
+}
+
+/// Whether a Reaction is active or inactive
+#[derive(Clone, Debug)]
+pub enum ReactionActivity {
+    /// The Reaction is active and can carry flux
+    Active,
+    /// The Reaction is inactive and can't carry flux
+    Inactive,
 }

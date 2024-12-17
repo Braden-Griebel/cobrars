@@ -4,9 +4,13 @@ use std::fmt::{Display, Formatter};
 use crate::metabolic_model::gene::{Gene, GeneActivity};
 use crate::metabolic_model::metabolite::Metabolite;
 use crate::metabolic_model::reaction::Reaction;
-use crate::optimize::problem::Problem;
-use crate::optimize::solvers::Solver;
+use crate::optimize::problem::{Problem, ProblemError};
+use crate::optimize::solvers::{SelectedSolver, Solver};
 
+use crate::configuration::CONFIGURATION;
+use crate::optimize;
+use crate::optimize::solvers::clarabel::ClarabelSolver;
+use crate::optimize::variable::VariableType;
 use indexmap::IndexMap;
 use thiserror::Error;
 
@@ -23,7 +27,7 @@ pub struct Model {
     pub objective: IndexMap<String, f64>,
     /// Underlying optimization problem
     pub problem: Option<Problem>,
-    /// Id associated with the Model
+    /// ID associated with the Model
     pub id: Option<String>,
     /// Compartments in the model
     ///
@@ -31,10 +35,14 @@ pub struct Model {
     pub compartments: Option<IndexMap<String, String>>,
     /// A version identifier for the Model, stored as a string
     pub version: Option<String>,
+    /// The backend solver to use for solving this model
+    pub solver: SelectedSolver,
 }
 
 impl Model {
+    /// Create a new empty model
     pub fn new_empty() -> Self {
+        let solver = CONFIGURATION.read().unwrap().solver.clone();
         Model {
             reactions: IndexMap::new(),
             genes: IndexMap::new(),
@@ -44,6 +52,7 @@ impl Model {
             id: None,
             compartments: None,
             version: None,
+            solver,
         }
     }
 
@@ -83,6 +92,134 @@ impl Model {
         self.genes.insert(id, gene);
     }
 }
+
+/// Functions for constructing an optimization problem from a Model
+impl Model {
+    pub fn optimize(&mut self) -> Result<optimize::ProblemSolution, ModelError> {
+        if let None = self.problem {
+            self.generate_problem();
+        }
+
+        match self.problem {
+            None => Err(ModelError::ProblemGenerationError),
+            Some(ref mut prob) => match self.solver {
+                SelectedSolver::Clarabel => {
+                    let mut solver = ClarabelSolver::new();
+                    Ok(prob.solve(&mut solver)?)
+                }
+                SelectedSolver::Scip => {
+                    todo!()
+                }
+                SelectedSolver::Osqp => {
+                    todo!()
+                }
+            },
+        }
+    }
+
+    pub fn generate_problem(&mut self) -> Result<(), ModelError> {
+        // Ensure the reaction activity matches the current state of gene activity
+        // TODO: Could add a flag to the model to check if this is necessary
+        self.update_reaction_activity();
+        // Create a problem from the model
+        self.problem = Some(self.problem_from_model()?);
+        Ok(())
+    }
+
+    /// Update reaction activity based on current state of genes
+    fn update_reaction_activity(&mut self) -> Result<(), ModelError> {
+        Ok(())
+    }
+
+    /// Create an optimization problem from the Model
+    fn problem_from_model(&self) -> Result<Problem, ModelError> {
+        // Create problem, with maximization as the default
+        let mut associated_problem = Problem::new_maximization();
+        // An index map to hold the constraints associated with each metabolite
+        let mut metabolite_constraints: IndexMap<String, (Vec<String>, Vec<f64>)> = IndexMap::new();
+        for met in self.metabolites.values() {
+            metabolite_constraints.insert(met.id.clone(), (Vec::new(), Vec::new()));
+        }
+
+        /* For every reaction, add the appropriate variables to the problem,
+        and add the variable to the appropriate metabolite constraints*/
+        for (_, rxn) in self.reactions.iter() {
+            // Add the reaction variables to the problem
+            // Forward variable
+            associated_problem.add_new_variable(
+                &rxn.get_forward_id(),
+                None,
+                VariableType::Continuous,
+                rxn.get_forward_lower_bound(),
+                rxn.get_forward_upper_bound(),
+            )?;
+            // Reverse variable
+            associated_problem.add_new_variable(
+                &rxn.get_reverse_id(),
+                None,
+                VariableType::Continuous,
+                rxn.get_reverse_lower_bound(),
+                rxn.get_reverse_upper_bound(),
+            )?;
+            // Add the reactions to the appropriate metabolite constraints
+            for (met, coef) in rxn.metabolites.iter() {
+                metabolite_constraints
+                    .entry(met.clone())
+                    .and_modify(|(rxns, coefs)| {
+                        // Add the forward variable and coefficient
+                        rxns.push(rxn.get_forward_id());
+                        coefs.push(coef.clone());
+                        // Add the reverse variable and coefficient
+                        rxns.push(rxn.get_reverse_id());
+                        coefs.push(-1f64 * coef.clone());
+                    });
+            }
+        }
+
+        // Add constraints to the problem
+        for (met_id, (var_ids, var_coefs)) in metabolite_constraints.iter() {
+            associated_problem.add_new_equality_constraint(
+                met_id,
+                // TODO: Potentially redo the underlying constraint creation to make this less obnoxious
+                &var_ids.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
+                var_coefs,
+                0f64,
+            )?
+        }
+
+        // Add the objective
+        for (rxn_id, coef) in self.objective.iter() {
+            let rxn = match self.reactions.get(rxn_id) {
+                Some(r) => r,
+                None => {
+                    return Err(ModelError::InvalidReaction {
+                        message: format!("Invalid reaction in objective: {}", rxn_id).to_string(),
+                    })
+                }
+            };
+            let fwd_id = rxn.get_forward_id();
+            let rev_id = rxn.get_reverse_id();
+            associated_problem.add_new_linear_objective_term(&fwd_id, coef.clone())?;
+            associated_problem.add_new_linear_objective_term(&rev_id, -coef.clone())?;
+        }
+
+        Ok(associated_problem)
+    }
+}
+
+// region Model Error
+#[derive(Error, Debug, Clone)]
+pub enum ModelError {
+    #[error("Problem from associated problem: {0}")]
+    AssociatedProblemError(#[from] ProblemError),
+    #[error("Problem accessing metabolite: {message}")]
+    InvalidMetabolite { message: String },
+    #[error("Problem accessing reaction: {message}")]
+    InvalidReaction { message: String },
+    #[error("Model failed to generate optimization problem")]
+    ProblemGenerationError,
+}
+// endregion Model Error
 
 // region GPR Functionality
 /// Representation of a Gene Protein Reaction Rule as an AST
@@ -176,23 +313,23 @@ pub enum GprOperatorType {
 
 #[derive(Clone, Debug, Error)]
 pub enum GprError {
-    #[error("Inavlid Binary Operation")]
+    #[error("Invalid Binary Operation")]
     InvalidBinaryOp,
-    #[error("Inavlid Unary Operation")]
+    #[error("Invalid Unary Operation")]
     InvalidUnaryOp,
     #[error("Gene is GPR is not present in the model")]
     GeneNotFound,
 }
 
-// Model associated frunctions for working with GPRs
+// Model associated functions for working with GPRs
 impl Model {
     /// Evaluate whether a GPR evaluates to Active or Inactive
-    pub fn eval_gpr(&self, gpr: Gpr) -> Result<GeneActivity, GprError> {
+    pub fn eval_gpr(&self, gpr: &Gpr) -> Result<GeneActivity, GprError> {
         match gpr {
             Gpr::Operation(op) => match op {
                 GprOperation::Or { left, right } => {
-                    let l = self.eval_gpr(*left)?;
-                    let r = self.eval_gpr(*right)?;
+                    let l = self.eval_gpr(&(*left))?;
+                    let r = self.eval_gpr(&(*right))?;
                     if l == GeneActivity::Active || r == GeneActivity::Active {
                         Ok(GeneActivity::Active)
                     } else {
@@ -200,20 +337,20 @@ impl Model {
                     }
                 }
                 GprOperation::And { left, right } => {
-                    let l = self.eval_gpr(*left)?;
-                    let r = self.eval_gpr(*right)?;
+                    let l = self.eval_gpr(&(*left))?;
+                    let r = self.eval_gpr(&(*right))?;
                     if l == GeneActivity::Active && r == GeneActivity::Active {
                         Ok(GeneActivity::Active)
                     } else {
                         Ok(GeneActivity::Inactive)
                     }
                 }
-                GprOperation::Not { val } => match self.eval_gpr(*val)? {
+                GprOperation::Not { val } => match self.eval_gpr(&(*val))? {
                     GeneActivity::Active => Ok(GeneActivity::Inactive),
                     GeneActivity::Inactive => Ok(GeneActivity::Active),
                 },
             },
-            Gpr::GeneNode(gene) => match self.genes.get(&gene) {
+            Gpr::GeneNode(gene) => match self.genes.get(gene) {
                 Some(g) => Ok(g.activity.clone()),
                 None => Err(GprError::GeneNotFound),
             },
@@ -260,7 +397,7 @@ mod gpr_tests {
         model.add_gene(inactive_gene1);
         model.add_gene(inactive_gene2);
 
-        return model;
+        model
     }
 
     #[test]
@@ -269,11 +406,11 @@ mod gpr_tests {
         let active_gene_node = Gpr::GeneNode("active_gene1".to_string());
         let inactive_gene_node = Gpr::GeneNode("inactive_gene1".to_string());
         assert_eq!(
-            model.eval_gpr(active_gene_node).unwrap(),
+            model.eval_gpr(&active_gene_node).unwrap(),
             GeneActivity::Active
         );
         assert_eq!(
-            model.eval_gpr(inactive_gene_node).unwrap(),
+            model.eval_gpr(&inactive_gene_node).unwrap(),
             GeneActivity::Inactive
         );
     }
@@ -290,7 +427,7 @@ mod gpr_tests {
         });
 
         assert_eq!(
-            model.eval_gpr(gpr_and_active).unwrap(),
+            model.eval_gpr(&gpr_and_active).unwrap(),
             GeneActivity::Active
         );
 
@@ -303,7 +440,7 @@ mod gpr_tests {
         });
 
         assert_eq!(
-            model.eval_gpr(gpr_and_inactive).unwrap(),
+            model.eval_gpr(&gpr_and_inactive).unwrap(),
             GeneActivity::Inactive
         );
 
@@ -316,7 +453,7 @@ mod gpr_tests {
         });
 
         assert_eq!(
-            model.eval_gpr(gpr_and_inactive).unwrap(),
+            model.eval_gpr(&gpr_and_inactive).unwrap(),
             GeneActivity::Inactive
         );
     }
@@ -332,7 +469,10 @@ mod gpr_tests {
             right: Box::new(active_gene_node2.clone()),
         });
 
-        assert_eq!(model.eval_gpr(gpr_or_active).unwrap(), GeneActivity::Active);
+        assert_eq!(
+            model.eval_gpr(&gpr_or_active).unwrap(),
+            GeneActivity::Active
+        );
 
         // With an active or an inactive gene
         let active_gene_node = Gpr::GeneNode("active_gene1".to_string());
@@ -343,7 +483,7 @@ mod gpr_tests {
         });
 
         assert_eq!(
-            model.eval_gpr(gpr_or_inactive).unwrap(),
+            model.eval_gpr(&gpr_or_inactive).unwrap(),
             GeneActivity::Active
         );
 
@@ -356,7 +496,7 @@ mod gpr_tests {
         });
 
         assert_eq!(
-            model.eval_gpr(gpr_or_inactive).unwrap(),
+            model.eval_gpr(&gpr_or_inactive).unwrap(),
             GeneActivity::Inactive
         );
     }
@@ -373,7 +513,7 @@ mod gpr_tests {
             val: Box::new(active_gene_node1),
         });
         assert_eq!(
-            model.eval_gpr(gpr_not_inactive).unwrap(),
+            model.eval_gpr(&gpr_not_inactive).unwrap(),
             GeneActivity::Inactive
         );
 
@@ -382,7 +522,7 @@ mod gpr_tests {
             val: Box::new(inactive_gene_node1),
         });
         assert_eq!(
-            model.eval_gpr(gpr_not_active).unwrap(),
+            model.eval_gpr(&gpr_not_active).unwrap(),
             GeneActivity::Active
         );
     }

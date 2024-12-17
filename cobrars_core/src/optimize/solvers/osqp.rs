@@ -1,6 +1,7 @@
 //! Solver interface for OSQP solver
 
 use crate::optimize::objective::ObjectiveSense;
+use crate::optimize::ProblemSolution;
 use crate::optimize::solvers::{Solver, SolverError};
 
 #[derive(Clone, Debug)]
@@ -87,7 +88,7 @@ impl Solver for OsqpSolver {
         todo!()
     }
 
-    fn new() -> Self {
+    fn solve(&mut self) -> Result<ProblemSolution, SolverError> {
         todo!()
     }
 }

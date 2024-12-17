@@ -5,7 +5,6 @@ use thiserror::Error;
 use super::{OptimizationStatus, ProblemSolution};
 use crate::optimize::constraint::Constraint;
 use crate::optimize::objective::{Objective, ObjectiveSense, ObjectiveTerm};
-use crate::optimize::problem::ProblemError::BadObjective;
 use crate::optimize::solvers::{Solver, SolverError};
 use crate::optimize::variable::{Variable, VariableBuilder, VariableType};
 
@@ -426,27 +425,27 @@ impl Problem {
                 // Check the first variable
                 if let Some(problem_var1) = self.variables.get(var1) {
                     if *var1 != problem_var1.id {
-                        return Err(BadObjective {message: format!("Objective term includes variable {var1}, which is not found in the problem")});
+                        return Err(ProblemError::BadObjective {message: format!("Objective term includes variable {var1}, which is not found in the problem")});
                     }
                 } else {
-                    return Err(BadObjective {message: format!("Objective term includes variable {var1}, which is not found in the problem")});
+                    return Err(ProblemError::BadObjective {message: format!("Objective term includes variable {var1}, which is not found in the problem")});
                 }
                 // Check the second variable
                 if let Some(problem_var2) = self.variables.get(var2) {
                     if *var2 != problem_var2.id {
-                        return Err(BadObjective {message: format!("Objective term includes variable {var2}, which is not found in the problem")});
+                        return Err(ProblemError::BadObjective {message: format!("Objective term includes variable {var2}, which is not found in the problem")});
                     }
                 } else {
-                    return Err(BadObjective {message: format!("Objective term includes variable {var2}, which is not found in the problem")});
+                    return Err(ProblemError::BadObjective {message: format!("Objective term includes variable {var2}, which is not found in the problem")});
                 }
             }
             ObjectiveTerm::Linear { var, .. } => {
                 if let Some(problem_var) = self.variables.get(var) {
                     if *var != problem_var.id {
-                        return Err(BadObjective {message: format!("Objective term includes variable {var}, which is not found in the problem")});
+                        return Err(ProblemError::BadObjective {message: format!("Objective term includes variable {var}, which is not found in the problem")});
                     }
                 } else {
-                    return Err(BadObjective {message: format!("Objective term includes variable {var}, which is not found in the problem")});
+                    return Err(ProblemError::BadObjective {message: format!("Objective term includes variable {var}, which is not found in the problem")});
                 }
             }
         }

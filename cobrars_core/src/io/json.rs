@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
-
+use crate::configuration::CONFIGURATION;
 use crate::io::gpr_parse::{parse_gpr, GprParseError};
 use crate::io::IoError;
 use crate::metabolic_model::gene::{Gene, GeneActivity};
@@ -202,6 +202,7 @@ impl Model {
                 objective.insert(rxn.id, coef);
             }
         }
+        let solver = CONFIGURATION.read().unwrap().solver.clone();
         Ok(Model {
             reactions,
             genes,
@@ -211,6 +212,7 @@ impl Model {
             id: json_model.id,
             compartments: json_model.compartments,
             version: json_model.version,
+            solver,
         })
     }
     fn to_json(&self) -> Result<JsonModel, JsonError> {

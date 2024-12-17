@@ -1,6 +1,6 @@
 //! Provides interface to backend solvers
 
-use crate::optimize::objective::{Objective, ObjectiveSense};
+use crate::optimize::objective::ObjectiveSense;
 use crate::optimize::ProblemSolution;
 use std::fmt::Debug;
 use thiserror::Error;
@@ -125,4 +125,15 @@ pub enum SolverError {
     /// Catch all for other types of solver errors
     #[error("Solver threw error: {message}")]
     SolverFailure { message: String }, // The usage of this should reduce as bugs are fixed
+}
+
+/// Enum used to specify the default solver to use
+#[derive(Clone, Debug)]
+pub enum SelectedSolver {
+    /// Use the Clarabel chordal decomposition solver
+    Clarabel,
+    /// Use the SCIP Mixed Integer Solver, requires the scip feature to be enabled
+    Scip,
+    /// Use the OSQP Quadratic Program Solver, requires the osqp feature to be enabled
+    Osqp,
 }
