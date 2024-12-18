@@ -47,7 +47,7 @@ pub fn parse_gpr(input: &str, gene_map: &mut IndexMap<String, Gene>) -> Result<G
 }
 
 /// Enum representing possible lex and parse errors
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum GprParseError {
     /// Lexing Error
     #[error("Error occurred during lexing (conversion of GPR string to tokens)")]

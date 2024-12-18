@@ -12,22 +12,22 @@ use indexmap::IndexMap;
 pub struct ProblemSolution {
     /// The status of the optimization problem, representing if the optimization was
     /// completed successfully
-    status: OptimizationStatus,
+    pub status: OptimizationStatus,
     /// Optimized value of the objective
     ///
     /// Some(f64) if the optimization was completed successfully, None otherwise
-    objective_value: Option<f64>,
+    pub objective_value: Option<f64>,
     /// Values of the variables at the optimum,
     ///
     /// Some(IndexMap), keyed by variable id, with values corresponding to variable
     /// values at optimum if the problem could be solved, None otherwise
-    variable_values: Option<IndexMap<String, f64>>,
+    pub variable_values: Option<IndexMap<String, f64>>,
     /// Values of the dual variables at the optimum
     ///
     /// Some(IndexMap), keyed by constraint id, with values corresponding to dual
     /// variable values at optimum if the problem could be solved, and the solver
     /// supports retrieving the dual values, None otherwise
-    dual_values: Option<IndexMap<String, f64>>,
+    pub dual_values: Option<IndexMap<String, f64>>,
 }
 
 /// Status of an optimization problem

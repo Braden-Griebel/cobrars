@@ -195,6 +195,7 @@ impl<'gm> GPRParser<'gm> {
 
 /// Enum representing possible parse errors
 #[derive(Debug, Error, PartialEq)]
+#[derive(Clone)]
 pub enum ParseError {
     /// Token was expected to be a binary operator but was not
     #[error("Invalid binary operator encountered, expected only `and` and `or`")]
